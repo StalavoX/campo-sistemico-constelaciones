@@ -178,16 +178,40 @@ function backgroundClick(event: PointerEvent) {
           :transform="`rotate(${node.rotation})`"
         />
         <circle
+          v-if="!node.figure"
           :r="36 * node.scale"
           :fill="node.color"
           :stroke="selectedNodeId === node.id ? '#fbbf24' : '#f8fafc'"
           :stroke-width="selectedNodeId === node.id ? 5 : 3"
           filter="url(#node-glow)"
         />
-        <text class="node-emoji" y="11" :font-size="36 * node.scale">{{ node.icon }}</text>
+        <g v-if="node.figure">
+          <rect
+            x="-53"
+            y="-70"
+            width="106"
+            height="138"
+            rx="34"
+            :transform="`scale(${node.scale})`"
+            :fill="node.color"
+            fill-opacity=".12"
+            :stroke="selectedNodeId === node.id ? '#fbbf24' : '#f8fafc'"
+            :stroke-opacity="selectedNodeId === node.id ? '.9' : '.38'"
+            :stroke-width="selectedNodeId === node.id ? 3 : 1.5"
+            filter="url(#node-glow)"
+          />
+          <text
+            class="node-emoji person-emoji"
+            y="8"
+            :font-size="104 * node.scale"
+            text-anchor="middle"
+            dominant-baseline="central"
+          >{{ node.icon }}</text>
+        </g>
+        <text v-else class="node-emoji" y="11" :font-size="36 * node.scale">{{ node.icon }}</text>
         <g class="node-label">
-          <rect x="-76" y="45" width="152" height="32" rx="10" />
-          <text y="66">{{ node.name.length > 18 ? `${node.name.slice(0, 17)}…` : node.name }}</text>
+          <rect x="-96" :y="node.figure ? 77 : 45" width="192" height="38" rx="10" />
+          <text :y="node.figure ? 102 : 70">{{ node.name.length > 21 ? `${node.name.slice(0, 20)}…` : node.name }}</text>
         </g>
       </g>
       <circle class="board-center" cx="500" cy="500" r="9" />

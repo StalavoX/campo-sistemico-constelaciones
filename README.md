@@ -56,7 +56,9 @@ La configuración de Vite usa rutas relativas para funcionar en una URL de proye
 ## Controles
 
 - Arrastrar una figura cambia su posición; activa la cuadrícula para ajustar el movimiento.
-- Selecciona una figura para ajustar el nombre, tamaño u orientación.
+- El catálogo incluye iconos de personas de cuerpo completo y diversos tonos de piel, además de emociones, logros, proyectos y conceptos; usan la misma estética de emoji a color que los animales.
+- Selecciona una figura para ajustar el nombre y tamaño; elige Frente, Derecha, Espalda o Izquierda para orientar la mirada sin poner el cuerpo de cabeza.
+- Usa el botón **A+** en la barra superior para ampliar el texto de la interfaz.
 - Usa **Vínculo** y selecciona dos figuras para crear una relación; selecciónala en el mapa o en la lista para editar su tipo, etiqueta y color.
 - `Ctrl/Cmd + Z` deshace, `Ctrl/Cmd + Y` rehace, `Ctrl/Cmd + S` guarda y `Ctrl/Cmd + K` busca.
 - `Delete` elimina la selección y `Esc` cancela el modo de vínculo.

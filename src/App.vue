@@ -5,7 +5,7 @@ import { archetypes, categoryOrder } from './data/archetypes';
 import { listSessions, removeSession, saveSession } from './storage';
 import type { Category, FieldLine, FieldNode, Session } from './types';
 import { categoryLabels } from './types';
-import { cloneState, createSession, getClockHour, getZone, validateSession } from './utils';
+import { cloneState, createSession, getClockHour, getOrientationLabel, getZone, validateSession } from './utils';
 
 type Snapshot = { nodes: FieldNode[]; lines: FieldLine[] };
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
@@ -21,6 +21,7 @@ const firstConnectionNode = ref<string | null>(null);
 const snapToGrid = ref(false);
 const showCatalog = ref(false);
 const showDetails = ref(false);
+const largeText = ref(false);
 const saveStatus = ref<'saved' | 'saving' | 'error'>('saved');
 const toastMessage = ref('');
 const installEvent = ref<InstallEvent | null>(null);
@@ -32,6 +33,12 @@ let saveTimer = 0;
 let toastTimer = 0;
 const history = ref<Snapshot[]>([]);
 const historyIndex = ref(-1);
+const directions = [
+  { rotation: 0, label: 'Frente', icon: '↑' },
+  { rotation: 90, label: 'Derecha', icon: '→' },
+  { rotation: 180, label: 'Espalda', icon: '↓' },
+  { rotation: 270, label: 'Izquierda', icon: '←' },
+];
 
 const filteredArchetypes = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('es');
@@ -115,6 +122,7 @@ function addNode(archetype: typeof archetypes[number]) {
     name: archetype.name,
     icon: archetype.icon,
     color: archetype.color,
+    ...(archetype.figure ? { figure: cloneState(archetype.figure) } : {}),
     x: Math.round(500 + Math.cos(angle) * distance),
     y: Math.round(500 + Math.sin(angle) * distance),
     rotation: 0,
@@ -309,7 +317,7 @@ function svgDataUrl(): string {
     .clock-hour-label text { fill: #c7d2fe; text-anchor: middle; font: 600 18px Arial, sans-serif; }
     .node-emoji { text-anchor: middle; dominant-baseline: middle; }
     .node-label rect { fill: #080d19; fill-opacity: .94; stroke: #94a3b8; stroke-opacity: .42; }
-    .node-label text { fill: #f8fafc; text-anchor: middle; font: 600 15px Arial, sans-serif; }
+    .node-label text { fill: #f8fafc; text-anchor: middle; font: 600 18px Arial, sans-serif; }
     .board-center { fill: #818cf8; stroke: #e0e7ff; stroke-width: 3; }
   `;
   clone.insertBefore(styles, clone.firstChild);
@@ -423,7 +431,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'large-text': largeText }">
     <header class="topbar">
       <a class="brand" href="./" aria-label="Campo Sistémico, inicio">
         <span class="brand-mark">✧</span>
@@ -441,6 +449,7 @@ onUnmounted(() => {
         <span class="save-indicator" :class="`save-${saveStatus}`" role="status">
           <i></i>{{ saveStatus === 'saved' ? 'Guardado' : saveStatus === 'saving' ? 'Guardando…' : 'Error al guardar' }}
         </span>
+        <button class="icon-button text-size-toggle" :aria-pressed="largeText" :title="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" :aria-label="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" @click="largeText = !largeText">A+</button>
         <button v-if="installEvent" class="button button-subtle install-button" @click="installApp">Instalar app</button>
         <button class="icon-button mobile-toggle" aria-label="Abrir catálogo" @click="showCatalog = !showCatalog">☰</button>
       </div>
@@ -530,7 +539,21 @@ onUnmounted(() => {
         <template v-if="selectedNode">
           <div class="selected-preview" :style="{ '--accent': selectedNode.color }"><span>{{ selectedNode.icon }}</span><div><strong>{{ selectedNode.name }}</strong><small>{{ getZone(selectedNode.x, selectedNode.y) }} · {{ getClockHour(selectedNode.x, selectedNode.y) ? `Hora ${getClockHour(selectedNode.x, selectedNode.y)}` : 'Centro' }}</small></div></div>
           <label class="field-label">Nombre o rol<input v-model="selectedNode.name" maxlength="80" @change="commitHistory" /></label>
-          <label class="field-label">Orientación <output>{{ selectedNode.rotation }}°</output><input v-model.number="selectedNode.rotation" type="range" min="0" max="360" @change="commitHistory" /></label>
+          <div class="field-label direction-control">
+            <span>Dirección de la mirada <output>{{ getOrientationLabel(selectedNode.rotation) }}</output></span>
+            <div class="direction-options" role="group" aria-label="Dirección de la mirada">
+              <button
+                v-for="direction in directions"
+                :key="direction.rotation"
+                type="button"
+                :class="{ active: selectedNode.rotation === direction.rotation }"
+                :aria-pressed="selectedNode.rotation === direction.rotation"
+                :aria-label="direction.label"
+                :title="direction.label"
+                @click="selectedNode.rotation = direction.rotation; commitHistory"
+              >{{ direction.icon }}</button>
+            </div>
+          </div>
           <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="0.6" max="1.8" step="0.1" @change="commitHistory" /></label>
           <div class="coordinates">Posición <span>{{ selectedNode.x }}, {{ selectedNode.y }}</span></div>
           <button class="button button-danger full-width" @click="deleteSelected">Eliminar elemento</button>
@@ -576,7 +599,7 @@ onUnmounted(() => {
       <header class="report-header"><div><div class="report-brand"><span class="brand-mark">✧</span> Campo Sistémico</div><h1>Informe de sesión</h1></div><div class="report-metadata"><strong>{{ session.name }}</strong><span>Fecha: {{ new Date().toLocaleDateString('es') }}</span><span>Facilitador/a: {{ session.facilitator || 'No especificado' }}</span><span>Cliente: {{ session.client || 'No especificado' }}</span></div></header>
       <div class="report-stats"><div><strong>{{ session.nodes.length }}</strong><span>Elementos</span></div><div><strong>{{ session.lines.length }}</strong><span>Vínculos</span></div><div><strong>{{ session.notes ? 'Sí' : 'No' }}</strong><span>Notas</span></div></div>
       <section class="report-section"><h2>Mapa del campo</h2><img :src="reportImage" alt="Vista del reloj sistémico con elementos y vínculos" /></section>
-      <section class="report-section"><h2>Elementos en el campo</h2><table><thead><tr><th>Elemento</th><th>Zona</th><th>Hora</th><th>Orientación</th><th>Escala</th></tr></thead><tbody><tr v-for="node in session.nodes" :key="node.id"><td>{{ node.icon }} {{ node.name }}</td><td>{{ getZone(node.x, node.y) }}</td><td>{{ getClockHour(node.x, node.y) ? `Hora ${getClockHour(node.x, node.y)}` : 'Centro' }}</td><td>{{ node.rotation }}°</td><td>{{ node.scale.toFixed(1) }}×</td></tr></tbody></table><p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p></section>
+      <section class="report-section"><h2>Elementos en el campo</h2><table><thead><tr><th>Elemento</th><th>Zona</th><th>Hora</th><th>Dirección</th><th>Escala</th></tr></thead><tbody><tr v-for="node in session.nodes" :key="node.id"><td>{{ node.icon }} {{ node.name }}</td><td>{{ getZone(node.x, node.y) }}</td><td>{{ getClockHour(node.x, node.y) ? `Hora ${getClockHour(node.x, node.y)}` : 'Centro' }}</td><td>{{ getOrientationLabel(node.rotation) }}</td><td>{{ node.scale.toFixed(1) }}×</td></tr></tbody></table><p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p></section>
       <section class="report-section"><h2>Vínculos</h2><ul><li v-for="line in session.lines" :key="line.id">{{ line.label }}: {{ session.nodes.find(node => node.id === line.from)?.name }} ↔ {{ session.nodes.find(node => node.id === line.to)?.name }}</li></ul><p v-if="!session.lines.length" class="report-empty">No se registraron vínculos.</p></section>
       <section class="report-section"><h2>Notas y observaciones</h2><p class="report-notes">{{ session.notes || 'Sin notas registradas.' }}</p></section>
       <footer class="report-footer">Informe generado localmente. Documento de apoyo visual; no constituye un diagnóstico.</footer>

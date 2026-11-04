@@ -1,6 +1,33 @@
-import type { FieldLine, FieldNode, Session } from './types';
+import type { FieldLine, FieldNode, HumanFigure, Session } from './types';
 
 export const cloneState = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+export function normalizeOrientation(value: number): number {
+  const normalized = ((value % 360) + 360) % 360;
+  return (Math.round(normalized / 90) % 4) * 90;
+}
+
+export function getOrientationLabel(value: number): string {
+  return ['Frente', 'Derecha', 'Espalda', 'Izquierda'][normalizeOrientation(value) / 90]!;
+}
+
+function validateFigure(value: unknown): HumanFigure | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const figure = value as Partial<HumanFigure>;
+  const color = (input: unknown): input is string => typeof input === 'string' && /^#[\da-f]{6}$/i.test(input);
+  const hairStyles: HumanFigure['hairStyle'][] = ['short', 'long', 'curly', 'braids', 'covered', 'none'];
+  const bodyShapes: HumanFigure['body'][] = ['dress', 'pants', 'child-dress', 'child-pants', 'baby', 'pregnant', 'elder', 'memorial'];
+  if (!color(figure.skin) || !color(figure.hair) || !color(figure.outfit) ||
+      !hairStyles.includes(figure.hairStyle as HumanFigure['hairStyle']) ||
+      !bodyShapes.includes(figure.body as HumanFigure['body'])) return undefined;
+  return {
+    skin: figure.skin,
+    hair: figure.hair,
+    outfit: figure.outfit,
+    hairStyle: figure.hairStyle as HumanFigure['hairStyle'],
+    body: figure.body as HumanFigure['body'],
+  };
+}
 
 export function createSession(name = 'Nueva sesión'): Session {
   const now = new Date().toISOString();
@@ -34,6 +61,7 @@ export function validateSession(value: unknown): Session {
     }
     if (ids.has(node.id)) throw new Error(`El identificador del elemento ${index + 1} está duplicado.`);
     ids.add(node.id);
+    const figure = validateFigure(node.figure);
     return {
       id: node.id,
       name: node.name,
@@ -41,8 +69,9 @@ export function validateSession(value: unknown): Session {
       color: typeof node.color === 'string' && /^#[\da-f]{6}$/i.test(node.color) ? node.color : '#6366f1',
       x: Math.min(960, Math.max(40, node.x)),
       y: Math.min(960, Math.max(40, node.y)),
-      rotation: Number.isFinite(node.rotation) ? node.rotation : 0,
+      rotation: Number.isFinite(node.rotation) ? normalizeOrientation(node.rotation) : 0,
       scale: Number.isFinite(node.scale) ? Math.min(1.8, Math.max(0.6, node.scale)) : 1,
+      ...(figure ? { figure } : {}),
     };
   });
   const lines = data.lines.map((line, index): FieldLine => {

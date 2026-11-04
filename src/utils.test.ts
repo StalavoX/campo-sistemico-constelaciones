@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getClockHour, getZone, validateSession } from './utils';
+import { getClockHour, getOrientationLabel, getZone, normalizeOrientation, validateSession } from './utils';
 
 const validSession = {
   id: 'session-1',
@@ -48,6 +48,29 @@ describe('validación de sesiones', () => {
     });
     expect(result.nodes[0]?.color).toBe('#6366f1');
   });
+
+  it('conserva ilustraciones completas válidas y descarta estilos importados no seguros', () => {
+    const figure = {
+      skin: '#c98258',
+      hair: '#29201f',
+      outfit: '#9d77c9',
+      hairStyle: 'long',
+      body: 'pregnant',
+    };
+    const valid = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], figure }],
+    });
+    expect(valid.nodes[0]?.figure).toEqual(figure);
+
+    const invalid = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], figure: { ...figure, skin: 'url(javascript:alert(1))' } }],
+    });
+    expect(invalid.nodes[0]?.figure).toBeUndefined();
+  });
 });
 
 describe('posición en el reloj', () => {
@@ -61,5 +84,27 @@ describe('posición en el reloj', () => {
     expect(getClockHour(500, 100)).toBe(12);
     expect(getClockHour(900, 500)).toBe(3);
     expect(getClockHour(500, 500)).toBeNull();
+  });
+});
+
+describe('dirección de la mirada', () => {
+  it('limita la orientación a cuatro direcciones sin inclinar la figura', () => {
+    expect([0, 90, 180, 270].map(getOrientationLabel)).toEqual(['Frente', 'Derecha', 'Espalda', 'Izquierda']);
+    expect(normalizeOrientation(359)).toBe(0);
+    expect(normalizeOrientation(360)).toBe(0);
+    expect(normalizeOrientation(46)).toBe(90);
+    expect(normalizeOrientation(-90)).toBe(270);
+  });
+
+  it('normaliza orientaciones antiguas al cargar sesiones', () => {
+    const result = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [
+        { ...validSession.nodes[0], rotation: 45 },
+        { ...validSession.nodes[1], rotation: 360 },
+      ],
+    });
+    expect(result.nodes.map((node) => node.rotation)).toEqual([90, 0]);
   });
 });
