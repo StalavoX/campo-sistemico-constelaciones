@@ -405,7 +405,7 @@ onMounted(async () => {
     if (sessions.value.length) session.value = cloneState(sessions.value[0]!);
     else {
       sessions.value = [cloneState(session.value)];
-      await saveSession(session.value);
+      await saveSession(cloneState(session.value));
     }
   } catch (error) {
     saveStatus.value = 'error';
