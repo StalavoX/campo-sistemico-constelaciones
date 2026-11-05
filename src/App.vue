@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FieldBoard from './components/FieldBoard.vue';
+import UiIcon from './components/UiIcon.vue';
 import { archetypes, categoryOrder } from './data/archetypes';
 import { listSessions, removeSession, saveSession } from './storage';
 import type { Category, FieldLine, FieldNode, Session } from './types';
@@ -34,10 +35,10 @@ let toastTimer = 0;
 const history = ref<Snapshot[]>([]);
 const historyIndex = ref(-1);
 const directions = [
-  { rotation: 0, label: 'Frente', icon: '↑' },
-  { rotation: 90, label: 'Derecha', icon: '→' },
-  { rotation: 180, label: 'Espalda', icon: '↓' },
-  { rotation: 270, label: 'Izquierda', icon: '←' },
+  { rotation: 0, label: 'Frente', icon: 'up' },
+  { rotation: 90, label: 'Derecha', icon: 'right' },
+  { rotation: 180, label: 'Espalda', icon: 'down' },
+  { rotation: 270, label: 'Izquierda', icon: 'left' },
 ];
 
 const filteredArchetypes = computed(() => {
@@ -434,7 +435,7 @@ onUnmounted(() => {
   <div class="app-shell" :class="{ 'large-text': largeText }">
     <header class="topbar">
       <a class="brand" href="./" aria-label="Campo Sistémico, inicio">
-        <span class="brand-mark">✧</span>
+        <span class="brand-mark"><UiIcon name="spark" :size="21" /></span>
         <span class="brand-copy"><strong>Campo Sistémico</strong><small>Espacio de trabajo</small></span>
       </a>
       <div class="session-controls">
@@ -442,8 +443,8 @@ onUnmounted(() => {
         <select id="session-picker" :value="session.id" aria-label="Seleccionar sesión" @change="switchSession">
           <option v-for="item in sessions" :key="item.id" :value="item.id">{{ item.name || 'Sesión sin título' }}</option>
         </select>
-        <button class="icon-button" title="Crear nueva sesión" aria-label="Crear nueva sesión" @click="createNewSession">＋</button>
-        <button class="icon-button optional-action" title="Duplicar sesión actual" aria-label="Duplicar sesión actual" @click="duplicateSession">▢</button>
+        <button class="icon-button" title="Crear nueva sesión" aria-label="Crear nueva sesión" @click="createNewSession"><UiIcon name="plus" /></button>
+        <button class="icon-button optional-action" title="Duplicar sesión actual" aria-label="Duplicar sesión actual" @click="duplicateSession"><UiIcon name="copy" /></button>
       </div>
       <div class="top-actions">
         <span class="save-indicator" :class="`save-${saveStatus}`" role="status">
@@ -451,7 +452,7 @@ onUnmounted(() => {
         </span>
         <button class="icon-button text-size-toggle" :aria-pressed="largeText" :title="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" :aria-label="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" @click="largeText = !largeText">A+</button>
         <button v-if="installEvent" class="button button-subtle install-button" @click="installApp">Instalar app</button>
-        <button class="icon-button mobile-toggle" aria-label="Abrir catálogo" @click="showCatalog = !showCatalog">☰</button>
+        <button class="icon-button mobile-toggle" aria-label="Abrir catálogo" @click="showCatalog = !showCatalog"><UiIcon name="menu" /></button>
       </div>
     </header>
 
@@ -460,10 +461,10 @@ onUnmounted(() => {
         <div class="panel-heading">
           <div><span class="eyebrow">BIBLIOTECA</span><h2>Elementos</h2></div>
           <span class="count-pill">{{ filteredArchetypes.length }}</span>
-          <button class="icon-button mobile-close" aria-label="Cerrar catálogo" @click="showCatalog = false">×</button>
+          <button class="icon-button mobile-close" aria-label="Cerrar catálogo" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
         <label class="search-field">
-          <span aria-hidden="true">⌕</span>
+          <span aria-hidden="true"><UiIcon name="search" /></span>
           <input ref="searchInput" v-model="search" type="search" placeholder="Buscar figura o concepto…" aria-label="Buscar elementos" />
           <kbd>⌘ K</kbd>
         </label>
@@ -488,7 +489,7 @@ onUnmounted(() => {
           </button>
           <div v-if="filteredArchetypes.length === 0" class="empty-search">No encontramos elementos con esa búsqueda.</div>
         </div>
-        <div class="privacy-note"><span>◈</span><p>Privado en este dispositivo.<br />No enviamos datos a ningún servidor.</p></div>
+        <div class="privacy-note"><span><UiIcon name="shield" :size="20" /></span><p>Privado en este dispositivo.<br />No enviamos datos a ningún servidor.</p></div>
       </aside>
 
       <main class="work-area">
@@ -499,21 +500,21 @@ onUnmounted(() => {
             <span class="session-client">{{ session.client || 'Sin cliente asignado' }}</span>
           </div>
           <div class="toolbar-actions">
-            <button class="tool-button" :disabled="historyIndex <= 0" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" @click="undo">↶</button>
-            <button class="tool-button" :disabled="historyIndex >= history.length - 1" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" @click="redo">↷</button>
+            <button class="tool-button" :disabled="historyIndex <= 0" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" @click="undo"><UiIcon name="undo" /></button>
+            <button class="tool-button" :disabled="historyIndex >= history.length - 1" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" @click="redo"><UiIcon name="redo" /></button>
             <span class="toolbar-divider"></span>
-            <button class="tool-button" :class="{ 'tool-active': connectMode }" :aria-pressed="connectMode" title="Conectar dos elementos" @click="toggleConnect">⌁ <span class="tool-label">Vínculo</span></button>
-            <button class="tool-button" :class="{ 'tool-active': snapToGrid }" :aria-pressed="snapToGrid" title="Ajustar posiciones a cuadrícula" @click="snapToGrid = !snapToGrid">▦</button>
-            <button class="tool-button" title="Distribuir alrededor del centro" :disabled="!totalCount" @click="centerNodes">⊙</button>
-            <button class="tool-button" title="Exportar mapa a PNG" @click="exportPng">↓ <span class="tool-label">PNG</span></button>
-            <button class="button button-primary report-button" @click="printReport">Informe PDF</button>
-            <button class="icon-button mobile-toggle" aria-label="Abrir detalles de sesión" @click="showDetails = !showDetails">☷</button>
+            <button class="tool-button" :class="{ 'tool-active': connectMode }" :aria-pressed="connectMode" title="Conectar dos elementos" @click="toggleConnect"><UiIcon name="link" /> <span class="tool-label">Vínculo</span></button>
+            <button class="tool-button" :class="{ 'tool-active': snapToGrid }" :aria-pressed="snapToGrid" title="Ajustar posiciones a cuadrícula" @click="snapToGrid = !snapToGrid"><UiIcon name="grid" /></button>
+            <button class="tool-button" title="Distribuir alrededor del centro" :disabled="!totalCount" @click="centerNodes"><UiIcon name="center" /></button>
+            <button class="tool-button" title="Exportar mapa a PNG" @click="exportPng"><UiIcon name="download" /> <span class="tool-label">PNG</span></button>
+            <button class="button button-primary report-button" @click="printReport"><UiIcon name="print" :size="16" />Informe PDF</button>
+            <button class="icon-button mobile-toggle" aria-label="Abrir detalles de sesión" @click="showDetails = !showDetails"><UiIcon name="panel" /></button>
           </div>
         </div>
 
         <div class="canvas-stage" :class="{ 'connection-mode': connectMode }">
           <div class="canvas-meta"><span><b>{{ totalCount }}</b> elementos</span><span class="meta-dot"></span><span><b>{{ session.lines.length }}</b> vínculos</span></div>
-          <div v-if="connectMode" class="mode-banner">⌁ {{ firstConnectionNode ? 'Selecciona el segundo elemento' : 'Selecciona el primer elemento' }} <button @click="toggleConnect">Cancelar</button></div>
+          <div v-if="connectMode" class="mode-banner"><UiIcon name="link" :size="16" />{{ firstConnectionNode ? 'Selecciona el segundo elemento' : 'Selecciona el primer elemento' }} <button @click="toggleConnect">Cancelar</button></div>
           <FieldBoard
             :nodes="session.nodes"
             :lines="session.lines"
@@ -534,7 +535,7 @@ onUnmounted(() => {
       <aside class="details-panel" :class="{ 'mobile-open': showDetails }">
         <div class="panel-heading">
           <div><span class="eyebrow">PROPIEDADES</span><h2>{{ selectedLine ? 'Vínculo' : selectedNode ? 'Elemento' : 'Sesión' }}</h2></div>
-          <button class="icon-button mobile-close" aria-label="Cerrar detalles" @click="showDetails = false">×</button>
+          <button class="icon-button mobile-close" aria-label="Cerrar detalles" @click="showDetails = false"><UiIcon name="close" /></button>
         </div>
         <template v-if="selectedNode">
           <div class="selected-preview" :style="{ '--accent': selectedNode.color }"><span>{{ selectedNode.icon }}</span><div><strong>{{ selectedNode.name }}</strong><small>{{ getZone(selectedNode.x, selectedNode.y) }} · {{ getClockHour(selectedNode.x, selectedNode.y) ? `Hora ${getClockHour(selectedNode.x, selectedNode.y)}` : 'Centro' }}</small></div></div>
@@ -556,10 +557,10 @@ onUnmounted(() => {
           </div>
           <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="0.6" max="1.8" step="0.1" @change="commitHistory" /></label>
           <div class="coordinates">Posición <span>{{ selectedNode.x }}, {{ selectedNode.y }}</span></div>
-          <button class="button button-danger full-width" @click="deleteSelected">Eliminar elemento</button>
+          <button class="button button-danger full-width" @click="deleteSelected"><UiIcon name="trash" :size="16" />Eliminar elemento</button>
         </template>
         <template v-else-if="selectedLine">
-          <div class="selected-preview line-preview"><span>⌁</span><div><strong>{{ selectedLine.label }}</strong><small>Conexión entre dos elementos</small></div></div>
+          <div class="selected-preview line-preview"><span><UiIcon name="link" :size="22" /></span><div><strong>{{ selectedLine.label }}</strong><small>Conexión entre dos elementos</small></div></div>
           <label class="field-label">Tipo de vínculo<input v-model="selectedLine.label" maxlength="60" placeholder="Ej. apoyo, tensión…" @change="commitHistory" /></label>
           <label class="field-label">Estilo
             <select v-model="selectedLine.kind" @change="commitHistory">
@@ -567,7 +568,7 @@ onUnmounted(() => {
             </select>
           </label>
           <label class="field-label">Color<input v-model="selectedLine.color" type="color" @change="commitHistory" /></label>
-          <button class="button button-danger full-width" @click="deleteSelected">Eliminar vínculo</button>
+          <button class="button button-danger full-width" @click="deleteSelected"><UiIcon name="trash" :size="16" />Eliminar vínculo</button>
         </template>
         <template v-else>
           <div class="session-form">
@@ -584,10 +585,10 @@ onUnmounted(() => {
           </div>
           <div class="details-section">
             <div class="section-title"><span>Respaldo</span></div>
-            <button class="secondary-row" @click="exportJson">Exportar sesión JSON <span>↗</span></button>
-            <button class="secondary-row" @click="importInput?.click()">Importar sesión JSON <span>↗</span></button>
+            <button class="secondary-row" @click="exportJson">Exportar sesión JSON <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
+            <button class="secondary-row" @click="importInput?.click()">Importar sesión JSON <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
             <input ref="importInput" class="sr-only" type="file" accept=".json,application/json" @change="importJson" />
-            <button class="secondary-row danger-row" @click="deleteSession">Eliminar esta sesión <span>×</span></button>
+            <button class="secondary-row danger-row" @click="deleteSession">Eliminar esta sesión <span><UiIcon name="trash" :size="16" /></span></button>
           </div>
           <p class="disclaimer">Las notas son registros de trabajo; esta herramienta no realiza diagnósticos ni interpreta resultados.</p>
         </template>
@@ -596,7 +597,7 @@ onUnmounted(() => {
 
     <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
     <section v-if="reportVisible" class="print-report" aria-label="Informe de sesión">
-      <header class="report-header"><div><div class="report-brand"><span class="brand-mark">✧</span> Campo Sistémico</div><h1>Informe de sesión</h1></div><div class="report-metadata"><strong>{{ session.name }}</strong><span>Fecha: {{ new Date().toLocaleDateString('es') }}</span><span>Facilitador/a: {{ session.facilitator || 'No especificado' }}</span><span>Cliente: {{ session.client || 'No especificado' }}</span></div></header>
+      <header class="report-header"><div><div class="report-brand"><span class="brand-mark"><UiIcon name="spark" :size="18" /></span> Campo Sistémico</div><h1>Informe de sesión</h1></div><div class="report-metadata"><strong>{{ session.name }}</strong><span>Fecha: {{ new Date().toLocaleDateString('es') }}</span><span>Facilitador/a: {{ session.facilitator || 'No especificado' }}</span><span>Cliente: {{ session.client || 'No especificado' }}</span></div></header>
       <div class="report-stats"><div><strong>{{ session.nodes.length }}</strong><span>Elementos</span></div><div><strong>{{ session.lines.length }}</strong><span>Vínculos</span></div><div><strong>{{ session.notes ? 'Sí' : 'No' }}</strong><span>Notas</span></div></div>
       <section class="report-section"><h2>Mapa del campo</h2><img :src="reportImage" alt="Vista del reloj sistémico con elementos y vínculos" /></section>
       <section class="report-section"><h2>Elementos en el campo</h2><table><thead><tr><th>Elemento</th><th>Zona</th><th>Hora</th><th>Dirección</th><th>Escala</th></tr></thead><tbody><tr v-for="node in session.nodes" :key="node.id"><td>{{ node.icon }} {{ node.name }}</td><td>{{ getZone(node.x, node.y) }}</td><td>{{ getClockHour(node.x, node.y) ? `Hora ${getClockHour(node.x, node.y)}` : 'Centro' }}</td><td>{{ getOrientationLabel(node.rotation) }}</td><td>{{ node.scale.toFixed(1) }}×</td></tr></tbody></table><p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p></section>
