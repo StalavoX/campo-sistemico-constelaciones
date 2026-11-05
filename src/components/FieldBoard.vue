@@ -187,6 +187,7 @@ function backgroundClick(event: PointerEvent) {
           :transform="`rotate(${node.rotation})`"
         />
         <circle
+          v-if="!node.figure"
           :r="(node.figure ? 42 : 36) * node.scale"
           :fill="node.color"
           :stroke="selectedNodeId === node.id ? '#fbbf24' : '#f8fafc'"
@@ -197,10 +198,10 @@ function backgroundClick(event: PointerEvent) {
           <image
             :href="getTwemojiAssetPath(node.icon)"
             :class="{ 'sapiens-asset': node.icon.startsWith('sapiens:') }"
-            :x="(node.figure ? -28 : -23) * node.scale"
-            :y="(node.figure ? -28 : -23) * node.scale"
-            :width="(node.figure ? 56 : 46) * node.scale"
-            :height="(node.figure ? 56 : 46) * node.scale"
+            :x="(node.figure ? -36 : -23) * node.scale"
+            :y="(node.figure ? -36 : -23) * node.scale"
+            :width="(node.figure ? 72 : 46) * node.scale"
+            :height="(node.figure ? 72 : 46) * node.scale"
             preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
           />

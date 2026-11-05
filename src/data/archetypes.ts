@@ -143,7 +143,6 @@ const children = [
 ];
 
 const roles = [
-  symbol('Persona Sapiens', 'sapiens:persona-sapiens-01.svg', 'Figura editorial de cuerpo completo', '#14b8a6'),
   symbol('Matriarca', '👑', 'Rol familiar', '#14b8a6'),
   symbol('Patriarca', '🧍🏻‍♂️', 'Rol familiar', '#14b8a6'),
   symbol('Madre adoptiva', '👩‍👧', 'Vínculo de cuidado', '#14b8a6'),
@@ -215,7 +214,6 @@ const groups: Array<[Category, ArchetypeInput[]]> = [
 export const categoryOrder = groups.map(([category]) => category);
 
 export const essentialArchetypeNames = new Set([
-  'Persona Sapiens',
   'Mujer adulta', 'Mujer joven', 'Mujer adulta mayor', 'Mujer embarazada',
   'Hombre adulto', 'Hombre joven', 'Hombre adulto mayor',
   'Abuela materna', 'Abuelo materno', 'Ancestro sabio', 'Persona fallecida', 'Familiar fallecido', 'Ancestro excluido',
