@@ -55,7 +55,10 @@ export interface Session {
   name: string;
   facilitator: string;
   client: string;
+  objective: string;
+  consent: boolean;
   notes: string;
+  closing: string;
   createdAt: string;
   updatedAt: string;
   nodes: FieldNode[];

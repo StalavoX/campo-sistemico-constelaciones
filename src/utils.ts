@@ -1,6 +1,27 @@
 import type { FieldLine, FieldNode, HumanFigure, Session } from './types';
+import { twemojiAssetIds } from './data/twemoji-assets';
 
 export const cloneState = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+export function getTwemojiAssetFilename(icon: string): string {
+  const codepoints = Array.from(icon, (character) => character.codePointAt(0))
+    .filter((point): point is number => point !== undefined && point !== 0xfe0f)
+    .map((point) => point.toString(16));
+  const assetId = codepoints.join('-');
+  return `${twemojiAssetIds.has(assetId) ? assetId : '2b50'}.svg`;
+}
+
+export function getTwemojiAssetPath(icon: string): string {
+  if (icon.startsWith('sapiens:')) return `${import.meta.env.BASE_URL}sapiens/${icon.slice('sapiens:'.length).replace('|mirror', '')}`;
+  return `${import.meta.env.BASE_URL}twemoji/${getTwemojiAssetFilename(icon)}`;
+}
+
+export function getPersonIcon(name: string, _figure: HumanFigure, previousIcon = ''): string {
+  if (previousIcon.startsWith('sapiens:')) return previousIcon;
+  const hash = Array.from(name).reduce((total, character) => total + character.codePointAt(0)!, 0);
+  return `sapiens:persona-sapiens-${String((hash % 18) + 1).padStart(2, '0')}.svg`;
+
+}
 
 export function normalizeOrientation(value: number): number {
   const normalized = ((value % 360) + 360) % 360;
@@ -8,7 +29,7 @@ export function normalizeOrientation(value: number): number {
 }
 
 export function getOrientationLabel(value: number): string {
-  return ['Frente', 'Derecha', 'Espalda', 'Izquierda'][normalizeOrientation(value) / 90]!;
+  return ['Arriba', 'Derecha', 'Abajo', 'Izquierda'][normalizeOrientation(value) / 90]!;
 }
 
 function validateFigure(value: unknown): HumanFigure | undefined {
@@ -36,7 +57,10 @@ export function createSession(name = 'Nueva sesión'): Session {
     name,
     facilitator: '',
     client: '',
+    objective: '',
+    consent: false,
     notes: '',
+    closing: '',
     createdAt: now,
     updatedAt: now,
     nodes: [],
@@ -65,22 +89,28 @@ export function validateSession(value: unknown): Session {
     return {
       id: node.id,
       name: node.name,
-      icon: typeof node.icon === 'string' && node.icon.length <= 16 ? node.icon : '⭐',
+      icon: figure
+        ? getPersonIcon(node.name, figure, typeof node.icon === 'string' ? node.icon : '')
+        : typeof node.icon === 'string' && node.icon.length <= 16 ? node.icon : '⭐',
       color: typeof node.color === 'string' && /^#[\da-f]{6}$/i.test(node.color) ? node.color : '#6366f1',
       x: Math.min(960, Math.max(40, node.x)),
       y: Math.min(960, Math.max(40, node.y)),
       rotation: Number.isFinite(node.rotation) ? normalizeOrientation(node.rotation) : 0,
-      scale: Number.isFinite(node.scale) ? Math.min(1.8, Math.max(0.6, node.scale)) : 1,
+      scale: Number.isFinite(node.scale) ? Math.min(1.8, Math.max(0.6, node.scale)) : 1.5,
       ...(figure ? { figure } : {}),
     };
   });
+  const lineIds = new Set<string>();
   const lines = data.lines.map((line, index): FieldLine => {
     if (!line || typeof line !== 'object' || !ids.has(line.from) || !ids.has(line.to) || line.from === line.to) {
       throw new Error(`El vínculo ${index + 1} referencia elementos inválidos.`);
     }
+    const id = typeof line.id === 'string' && line.id.length <= 120 ? line.id : crypto.randomUUID();
+    if (lineIds.has(id)) throw new Error(`El identificador del vínculo ${index + 1} está duplicado.`);
+    lineIds.add(id);
     const kind = ['solid', 'dashed', 'dotted'].includes(line.kind) ? line.kind : 'solid';
     return {
-      id: typeof line.id === 'string' ? line.id : crypto.randomUUID(),
+      id,
       from: line.from,
       to: line.to,
       kind,
@@ -94,7 +124,10 @@ export function validateSession(value: unknown): Session {
     name: data.name.slice(0, 120),
     facilitator: typeof data.facilitator === 'string' ? data.facilitator.slice(0, 120) : '',
     client: typeof data.client === 'string' ? data.client.slice(0, 120) : '',
+    objective: typeof data.objective === 'string' ? data.objective.slice(0, 500) : '',
+    consent: data.consent === true,
     notes: typeof data.notes === 'string' ? data.notes.slice(0, 6000) : '',
+    closing: typeof data.closing === 'string' ? data.closing.slice(0, 2000) : '',
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : now,
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : now,
     nodes,

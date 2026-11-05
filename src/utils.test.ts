@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getClockHour, getOrientationLabel, getZone, normalizeOrientation, validateSession } from './utils';
+import { getClockHour, getOrientationLabel, getTwemojiAssetFilename, getZone, normalizeOrientation, validateSession } from './utils';
 
 const validSession = {
   id: 'session-1',
@@ -18,6 +18,10 @@ const validSession = {
 };
 
 describe('validación de sesiones', () => {
+  it('usa un recurso local cuando una sesión contiene un icono ajeno al catálogo', () => {
+    expect(getTwemojiAssetFilename('👤')).toBe('2b50.svg');
+  });
+
   it('acepta los datos de sesión y conserva los vínculos válidos', () => {
     const result = validateSession(validSession);
     expect(result.nodes).toHaveLength(2);
@@ -29,6 +33,13 @@ describe('validación de sesiones', () => {
       ...validSession,
       lines: [{ id: 'broken', from: 'missing', to: 'node-2' }],
     })).toThrow('El vínculo 1 referencia elementos inválidos.');
+  });
+
+  it('rechaza identificadores de vínculos duplicados', () => {
+    expect(() => validateSession({
+      ...validSession,
+      lines: [validSession.lines[0], { ...validSession.lines[0], from: 'node-2', to: 'node-1' }],
+    })).toThrow('El identificador del vínculo 2 está duplicado.');
   });
 
   it('limita posiciones y tamaños al tablero', () => {
@@ -55,7 +66,7 @@ describe('validación de sesiones', () => {
       hair: '#29201f',
       outfit: '#9d77c9',
       hairStyle: 'long',
-      body: 'pregnant',
+      body: 'pants',
     };
     const valid = validateSession({
       ...validSession,
@@ -70,6 +81,26 @@ describe('validación de sesiones', () => {
       nodes: [{ ...validSession.nodes[0], figure: { ...figure, skin: 'url(javascript:alert(1))' } }],
     });
     expect(invalid.nodes[0]?.figure).toBeUndefined();
+  });
+
+  it('conserva iconos de persona locales para mantener sus rasgos visuales', () => {
+    const result = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{
+        ...validSession.nodes[0],
+        name: 'Mujer Afro',
+        icon: '👩🏿‍🦱',
+        figure: {
+          skin: '#603b32',
+          hair: '#181517',
+          outfit: '#d07182',
+          hairStyle: 'curly',
+          body: 'dress',
+        },
+      }],
+    });
+    expect(result.nodes[0]?.icon).toMatch(/^sapiens:persona-sapiens-/u);
   });
 });
 
@@ -89,7 +120,7 @@ describe('posición en el reloj', () => {
 
 describe('dirección de la mirada', () => {
   it('limita la orientación a cuatro direcciones sin inclinar la figura', () => {
-    expect([0, 90, 180, 270].map(getOrientationLabel)).toEqual(['Frente', 'Derecha', 'Espalda', 'Izquierda']);
+    expect([0, 90, 180, 270].map(getOrientationLabel)).toEqual(['Arriba', 'Derecha', 'Abajo', 'Izquierda']);
     expect(normalizeOrientation(359)).toBe(0);
     expect(normalizeOrientation(360)).toBe(0);
     expect(normalizeOrientation(46)).toBe(90);

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Prototipo de figuras humanas de cuerpo completo</title>
+  <desc id="desc">Cuatro figuras diferenciadas por cabello, ropa, proporciones y postura.</desc>
+  <rect width="1200" height="520" rx="28" fill="#0b1220"/>
+  <g font-family="Arial, sans-serif" text-anchor="middle" fill="#f8fafc">
+    <g transform="translate(150 45)">
+      <circle cx="0" cy="78" r="42" fill="#c98258" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-40 70Q-38 20 0 22Q40 22 40 70Q20 48 0 50Q-20 48-40 70Z" fill="#211917"/>
+      <path d="M-30 130Q0 112 30 130L48 282Q0 310-48 282Z" fill="#9d77c9" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-48 160H-78L-105 246" fill="none" stroke="#c98258" stroke-width="24" stroke-linecap="round"/>
+      <path d="M48 160H78L105 246" fill="none" stroke="#c98258" stroke-width="24" stroke-linecap="round"/>
+      <path d="M-22 282L-32 405M22 282L32 405" fill="none" stroke="#c98258" stroke-width="25" stroke-linecap="round"/>
+      <path d="M-50 405H-8M8 405H50" stroke="#7dd3fc" stroke-width="18" stroke-linecap="round"/>
+      <text y="455" font-size="22" font-weight="700">Adulta</text>
+      <text y="482" font-size="16" fill="#a5b4fc">cabello largo · vestido</text>
+    </g>
+    <g transform="translate(450 45)">
+      <circle cx="0" cy="78" r="42" fill="#94593f" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-43 70Q-48 15 0 18Q48 15 43 70L30 45Q0 30-30 45Z" fill="#181517"/>
+      <path d="M-38 135Q0 115 38 135L45 282Q0 300-45 282Z" fill="#57a18b" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-38 160H-75L-92 245M38 160H75L92 245" fill="none" stroke="#94593f" stroke-width="24" stroke-linecap="round"/>
+      <path d="M-20 282L-28 405M20 282L28 405" fill="none" stroke="#94593f" stroke-width="25" stroke-linecap="round"/>
+      <path d="M-48 405H-6M6 405H48" stroke="#334155" stroke-width="18" stroke-linecap="round"/>
+      <path d="M-45 66Q-70 100-48 125M45 66Q70 100 48 125" fill="none" stroke="#181517" stroke-width="13" stroke-linecap="round"/>
+      <text y="455" font-size="22" font-weight="700">Adulto mayor</text>
+      <text y="482" font-size="16" fill="#a5b4fc">canas · postura diferenciada</text>
+    </g>
+    <g transform="translate(750 45)">
+      <circle cx="0" cy="78" r="34" fill="#e8b18b" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-34 72Q-38 30 0 25Q38 30 34 72Q20 48 0 52Q-20 48-34 72Z" fill="#59382b"/>
+      <path d="M-28 130Q0 115 28 130L40 270Q0 285-40 270Z" fill="#bd7194" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-28 155H-60L-75 235M28 155H60L75 235" fill="none" stroke="#e8b18b" stroke-width="20" stroke-linecap="round"/>
+      <path d="M-15 270L-20 395M15 270L20 395" fill="none" stroke="#e8b18b" stroke-width="21" stroke-linecap="round"/>
+      <path d="M-40 395H-4M4 395H40" stroke="#5e9fb2" stroke-width="15" stroke-linecap="round"/>
+      <text y="455" font-size="22" font-weight="700">Niña</text>
+      <text y="482" font-size="16" fill="#a5b4fc">proporciones infantiles · vestido</text>
+    </g>
+    <g transform="translate(1050 45)">
+      <circle cx="0" cy="78" r="42" fill="#c98258" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-40 70Q-38 20 0 22Q38 20 40 70Q20 48 0 50Q-20 48-40 70Z" fill="#2b211e"/>
+      <path d="M-34 135Q0 112 34 135L70 280Q0 322-70 280Z" fill="#b67ab8" stroke="#f8fafc" stroke-width="4"/>
+      <path d="M-34 160H-72L-92 245M34 160H72L92 245" fill="none" stroke="#c98258" stroke-width="24" stroke-linecap="round"/>
+      <path d="M-25 280L-35 405M25 280L35 405" fill="none" stroke="#c98258" stroke-width="25" stroke-linecap="round"/>
+      <path d="M-50 405H-8M8 405H50" stroke="#64748b" stroke-width="18" stroke-linecap="round"/>
+      <circle cx="0" cy="205" r="48" fill="#d8799e" fill-opacity=".3" stroke="#fbbf24" stroke-width="3"/>
+      <text y="455" font-size="22" font-weight="700">Embarazada</text>
+      <text y="482" font-size="16" fill="#a5b4fc">silueta y vientre reconocibles</text>
+    </g>
+  </g>
+</svg>

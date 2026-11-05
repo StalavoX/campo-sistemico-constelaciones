@@ -2,11 +2,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FieldBoard from './components/FieldBoard.vue';
 import UiIcon from './components/UiIcon.vue';
-import { archetypes, categoryOrder } from './data/archetypes';
+import { archetypes, categoryOrder, essentialArchetypeNames } from './data/archetypes';
 import { listSessions, removeSession, saveSession } from './storage';
 import type { Category, FieldLine, FieldNode, Session } from './types';
 import { categoryLabels } from './types';
-import { cloneState, createSession, getClockHour, getOrientationLabel, getZone, validateSession } from './utils';
+import { cloneState, createSession, getOrientationLabel, getTwemojiAssetPath, getZone, validateSession } from './utils';
 
 type Snapshot = { nodes: FieldNode[]; lines: FieldLine[] };
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
@@ -35,15 +35,16 @@ let toastTimer = 0;
 const history = ref<Snapshot[]>([]);
 const historyIndex = ref(-1);
 const directions = [
-  { rotation: 0, label: 'Frente', icon: 'up' },
+  { rotation: 0, label: 'Arriba', icon: 'up' },
   { rotation: 90, label: 'Derecha', icon: 'right' },
-  { rotation: 180, label: 'Espalda', icon: 'down' },
+  { rotation: 180, label: 'Abajo', icon: 'down' },
   { rotation: 270, label: 'Izquierda', icon: 'left' },
-];
+] as const;
 
 const filteredArchetypes = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('es');
-  return archetypes.filter((item) => {
+  const source = archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es')));
+  return source.filter((item) => {
     const categoryMatches = category.value === 'all' || item.category === category.value;
     const queryMatches = !query || `${item.name} ${item.detail} ${categoryLabels[item.category]}`.toLocaleLowerCase('es').includes(query);
     return categoryMatches && queryMatches;
@@ -109,7 +110,10 @@ watch(() => JSON.stringify({
   name: session.value.name,
   facilitator: session.value.facilitator,
   client: session.value.client,
+  objective: session.value.objective,
+  consent: session.value.consent,
   notes: session.value.notes,
+  closing: session.value.closing,
   nodes: session.value.nodes,
   lines: session.value.lines,
 }), scheduleSave);
@@ -127,7 +131,7 @@ function addNode(archetype: typeof archetypes[number]) {
     x: Math.round(500 + Math.cos(angle) * distance),
     y: Math.round(500 + Math.sin(angle) * distance),
     rotation: 0,
-    scale: 1,
+    scale: 1.5,
   };
   session.value.nodes.push(node);
   selectedNodeId.value = node.id;
@@ -256,7 +260,14 @@ async function deleteSession() {
   try {
     await removeSession(session.value.id);
     sessions.value = sessions.value.filter((item) => item.id !== session.value.id);
-    session.value = sessions.value.length ? cloneState(sessions.value[0]!) : createSession('Mi primera sesión');
+    if (sessions.value.length) {
+      session.value = cloneState(sessions.value[0]!);
+    } else {
+      const next = createSession('Mi primera sesión');
+      session.value = next;
+      sessions.value = [cloneState(next)];
+      await saveSession(cloneState(next));
+    }
     resetHistory();
     showToast('Sesión eliminada de este dispositivo.');
   } catch (error) {
@@ -303,7 +314,7 @@ async function importJson(event: Event) {
   }
 }
 
-function svgDataUrl(): string {
+async function svgDataUrl(): Promise<string> {
   const svg = document.querySelector<SVGSVGElement>('.field-board');
   if (!svg) throw new Error('No se encontró el tablero para exportar.');
   const clone = svg.cloneNode(true) as SVGSVGElement;
@@ -313,22 +324,27 @@ function svgDataUrl(): string {
   clone.querySelectorAll('[tabindex]').forEach((element) => element.removeAttribute('tabindex'));
   const styles = document.createElementNS('http://www.w3.org/2000/svg', 'style');
   styles.textContent = `
-    text { font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
     .clock-hour-label circle { fill: #0f172a; fill-opacity: .84; stroke: #94a3b8; stroke-opacity: .32; }
     .clock-hour-label text { fill: #c7d2fe; text-anchor: middle; font: 600 18px Arial, sans-serif; }
-    .node-emoji { text-anchor: middle; dominant-baseline: middle; }
     .node-label rect { fill: #080d19; fill-opacity: .94; stroke: #94a3b8; stroke-opacity: .42; }
     .node-label text { fill: #f8fafc; text-anchor: middle; font: 600 18px Arial, sans-serif; }
     .board-center { fill: #818cf8; stroke: #e0e7ff; stroke-width: 3; }
   `;
   clone.insertBefore(styles, clone.firstChild);
+  await Promise.all(Array.from(clone.querySelectorAll('image')).map(async (image) => {
+    const source = image.getAttribute('href');
+    if (!source) throw new Error('Un icono del tablero no tiene una ruta de imagen.');
+    const response = await fetch(source);
+    if (!response.ok) throw new Error(`No se pudo cargar el icono del tablero (${source}).`);
+    image.setAttribute('href', `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await response.text())}`);
+  }));
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(clone))}`;
 }
 
 async function exportPng() {
   try {
     const image = new Image();
-    image.src = svgDataUrl();
+    image.src = await svgDataUrl();
     await image.decode();
     const canvas = document.createElement('canvas');
     canvas.width = 1600;
@@ -348,7 +364,7 @@ async function exportPng() {
 
 async function printReport() {
   try {
-    reportImage.value = svgDataUrl();
+    reportImage.value = await svgDataUrl();
     reportVisible.value = true;
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     window.print();
@@ -460,7 +476,7 @@ onUnmounted(() => {
       <aside class="catalog-panel" :class="{ 'mobile-open': showCatalog }">
         <div class="panel-heading">
           <div><span class="eyebrow">BIBLIOTECA</span><h2>Elementos</h2></div>
-          <span class="count-pill">{{ filteredArchetypes.length }}</span>
+           <span class="count-pill">{{ filteredArchetypes.length }}</span>
           <button class="icon-button mobile-close" aria-label="Cerrar catálogo" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
         <label class="search-field">
@@ -468,8 +484,8 @@ onUnmounted(() => {
           <input ref="searchInput" v-model="search" type="search" placeholder="Buscar figura o concepto…" aria-label="Buscar elementos" />
           <kbd>⌘ K</kbd>
         </label>
-        <div class="category-list" role="group" aria-label="Filtrar por categoría">
-          <button :class="{ active: category === 'all' }" @click="category = 'all'">Todo <span>{{ archetypes.length }}</span></button>
+         <div class="category-list" role="group" aria-label="Filtrar por categoría">
+           <button :class="{ active: category === 'all' }" @click="category = 'all'">Todo <span>{{ archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es'))).length }}</span></button>
           <button v-for="item in categoryOrder" :key="item" :class="{ active: category === item }" @click="category = item">
             {{ categoryLabels[item] }}
           </button>
@@ -483,13 +499,16 @@ onUnmounted(() => {
             :aria-label="`Añadir ${item.name} al tablero`"
             @click="addNode(item); showCatalog = false"
           >
-            <span class="archetype-icon">{{ item.icon }}</span>
+            <span class="archetype-icon"><img :class="{ 'sapiens-asset': item.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(item.icon)" alt="" /></span>
             <span class="archetype-name">{{ item.name }}</span>
             <span class="archetype-detail">{{ item.detail }}</span>
           </button>
           <div v-if="filteredArchetypes.length === 0" class="empty-search">No encontramos elementos con esa búsqueda.</div>
         </div>
-        <div class="privacy-note"><span><UiIcon name="shield" :size="20" /></span><p>Privado en este dispositivo.<br />No enviamos datos a ningún servidor.</p></div>
+        <div class="privacy-note">
+          <span><UiIcon name="shield" :size="20" /></span>
+          <div><p>Privado en este dispositivo.<br />No enviamos datos a ningún servidor.</p><small>Iconos Twemoji · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a></small></div>
+        </div>
       </aside>
 
       <main class="work-area">
@@ -538,11 +557,11 @@ onUnmounted(() => {
           <button class="icon-button mobile-close" aria-label="Cerrar detalles" @click="showDetails = false"><UiIcon name="close" /></button>
         </div>
         <template v-if="selectedNode">
-          <div class="selected-preview" :style="{ '--accent': selectedNode.color }"><span>{{ selectedNode.icon }}</span><div><strong>{{ selectedNode.name }}</strong><small>{{ getZone(selectedNode.x, selectedNode.y) }} · {{ getClockHour(selectedNode.x, selectedNode.y) ? `Hora ${getClockHour(selectedNode.x, selectedNode.y)}` : 'Centro' }}</small></div></div>
+          <div class="selected-preview" :style="{ '--accent': selectedNode.color }"><span><img :class="{ 'sapiens-asset': selectedNode.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(selectedNode.icon)" alt="" /></span><div><strong>{{ selectedNode.name }}</strong><small>{{ getZone(selectedNode.x, selectedNode.y) }}</small></div></div>
           <label class="field-label">Nombre o rol<input v-model="selectedNode.name" maxlength="80" @change="commitHistory" /></label>
           <div class="field-label direction-control">
-            <span>Dirección de la mirada <output>{{ getOrientationLabel(selectedNode.rotation) }}</output></span>
-            <div class="direction-options" role="group" aria-label="Dirección de la mirada">
+            <span>Orientación en el tablero <output>{{ getOrientationLabel(selectedNode.rotation) }}</output></span>
+            <div class="direction-options" role="group" aria-label="Orientación en el tablero">
               <button
                 v-for="direction in directions"
                 :key="direction.rotation"
@@ -552,7 +571,7 @@ onUnmounted(() => {
                 :aria-label="direction.label"
                 :title="direction.label"
                 @click="selectedNode.rotation = direction.rotation; commitHistory"
-              >{{ direction.icon }}</button>
+              ><UiIcon :name="direction.icon" /></button>
             </div>
           </div>
           <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="0.6" max="1.8" step="0.1" @change="commitHistory" /></label>
@@ -574,7 +593,10 @@ onUnmounted(() => {
           <div class="session-form">
             <label class="field-label">Facilitador/a<input v-model="session.facilitator" maxlength="120" placeholder="Nombre profesional" /></label>
             <label class="field-label">Cliente o motivo<input v-model="session.client" maxlength="120" placeholder="Nombre o tema de sesión" /></label>
-            <label class="field-label">Notas de observación<textarea v-model="session.notes" rows="8" maxlength="6000" placeholder="Registra observaciones de la sesión…"></textarea><small class="character-count">{{ session.notes.length }} / 6000</small></label>
+            <label class="field-label">Objetivo de la sesión<textarea v-model="session.objective" rows="3" maxlength="500" placeholder="¿Qué desea explorar la persona?"></textarea></label>
+            <label class="consent-check"><input v-model="session.consent" type="checkbox" /> <span>La persona comprende que este mapa representa percepciones y puede cambiarlo o detener la sesión.</span></label>
+            <label class="field-label">Observaciones<textarea v-model="session.notes" rows="6" maxlength="6000" placeholder="Registra lo que la persona expresa, sin convertirlo en una conclusión…"></textarea><small class="character-count">{{ session.notes.length }} / 6000</small></label>
+            <label class="field-label">Cierre y seguimiento<textarea v-model="session.closing" rows="4" maxlength="2000" placeholder="Acuerdos, recursos y próximos pasos…"></textarea></label>
           </div>
           <div class="details-section">
             <div class="section-title"><span>Relaciones</span><small>{{ session.lines.length }}</small></div>
@@ -598,9 +620,10 @@ onUnmounted(() => {
     <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
     <section v-if="reportVisible" class="print-report" aria-label="Informe de sesión">
       <header class="report-header"><div><div class="report-brand"><span class="brand-mark"><UiIcon name="spark" :size="18" /></span> Campo Sistémico</div><h1>Informe de sesión</h1></div><div class="report-metadata"><strong>{{ session.name }}</strong><span>Fecha: {{ new Date().toLocaleDateString('es') }}</span><span>Facilitador/a: {{ session.facilitator || 'No especificado' }}</span><span>Cliente: {{ session.client || 'No especificado' }}</span></div></header>
-      <div class="report-stats"><div><strong>{{ session.nodes.length }}</strong><span>Elementos</span></div><div><strong>{{ session.lines.length }}</strong><span>Vínculos</span></div><div><strong>{{ session.notes ? 'Sí' : 'No' }}</strong><span>Notas</span></div></div>
+       <div class="report-stats"><div><strong>{{ session.nodes.length }}</strong><span>Elementos</span></div><div><strong>{{ session.lines.length }}</strong><span>Vínculos</span></div><div><strong>{{ session.notes ? 'Sí' : 'No' }}</strong><span>Observaciones</span></div></div>
+       <section class="report-section report-session-context"><h2>Contexto de la sesión</h2><dl><dt>Objetivo</dt><dd>{{ session.objective || 'No especificado' }}</dd><dt>Consentimiento</dt><dd>{{ session.consent ? 'Registrado' : 'No registrado' }}</dd><dt>Observaciones</dt><dd>{{ session.notes || 'Sin observaciones registradas.' }}</dd><dt>Cierre y seguimiento</dt><dd>{{ session.closing || 'Sin acuerdos de cierre registrados.' }}</dd></dl></section>
       <section class="report-section"><h2>Mapa del campo</h2><img :src="reportImage" alt="Vista del reloj sistémico con elementos y vínculos" /></section>
-      <section class="report-section"><h2>Elementos en el campo</h2><table><thead><tr><th>Elemento</th><th>Zona</th><th>Hora</th><th>Dirección</th><th>Escala</th></tr></thead><tbody><tr v-for="node in session.nodes" :key="node.id"><td>{{ node.icon }} {{ node.name }}</td><td>{{ getZone(node.x, node.y) }}</td><td>{{ getClockHour(node.x, node.y) ? `Hora ${getClockHour(node.x, node.y)}` : 'Centro' }}</td><td>{{ getOrientationLabel(node.rotation) }}</td><td>{{ node.scale.toFixed(1) }}×</td></tr></tbody></table><p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p></section>
+      <section class="report-section"><h2>Elementos en el campo</h2><table><thead><tr><th>Elemento</th><th>Zona</th><th>Dirección</th><th>Escala</th></tr></thead><tbody><tr v-for="node in session.nodes" :key="node.id"><td><img class="report-icon" :src="getTwemojiAssetPath(node.icon)" alt="" /> {{ node.name }}</td><td>{{ getZone(node.x, node.y) }}</td><td>{{ getOrientationLabel(node.rotation) }}</td><td>{{ node.scale.toFixed(1) }}×</td></tr></tbody></table><p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p></section>
       <section class="report-section"><h2>Vínculos</h2><ul><li v-for="line in session.lines" :key="line.id">{{ line.label }}: {{ session.nodes.find(node => node.id === line.from)?.name }} ↔ {{ session.nodes.find(node => node.id === line.to)?.name }}</li></ul><p v-if="!session.lines.length" class="report-empty">No se registraron vínculos.</p></section>
       <section class="report-section"><h2>Notas y observaciones</h2><p class="report-notes">{{ session.notes || 'Sin notas registradas.' }}</p></section>
       <footer class="report-footer">Informe generado localmente. Documento de apoyo visual; no constituye un diagnóstico.</footer>

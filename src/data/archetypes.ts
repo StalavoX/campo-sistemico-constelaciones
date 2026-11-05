@@ -1,4 +1,5 @@
 import type { Archetype, Category, HumanFigure } from '../types';
+import { getPersonIcon } from '../utils';
 
 type ArchetypeInput = Omit<Archetype, 'id' | 'category'>;
 
@@ -9,6 +10,31 @@ const skinTones = {
   brown: '#94593f',
   deep: '#603b32',
 };
+
+function briefPersonDetail(detail: string, _skin: string, hairStyle: HumanFigure['hairStyle'], body: HumanFigure['body']): string {
+  if (body === 'pregnant') return 'Embarazo';
+  if (body === 'baby') return 'Bebé';
+  if (body === 'memorial') return detail.includes('apartada') ? 'Excluido/a' : 'En memoria';
+  if (body === 'elder') {
+    if (detail.startsWith('Línea')) return detail;
+    if (detail.includes('Generación')) return 'Otra generación';
+    if (detail.includes('Ancestro')) return 'Ancestro';
+    return 'Adulto mayor';
+  }
+
+  if (/cobrizo|rojo/i.test(detail)) return 'Cabello pelirrojo';
+  if (/rubio/i.test(detail)) return 'Cabello rubio';
+  if (/castaño/i.test(detail)) return 'Cabello castaño';
+  if (/canoso/i.test(detail)) return 'Cabello canoso';
+  return ({
+    short: 'Cabello corto',
+    long: 'Cabello largo',
+    curly: 'Cabello rizado',
+    braids: 'Cabello trenzado',
+    covered: 'Velo',
+    none: 'Sin cabello',
+  } as Record<HumanFigure['hairStyle'], string>)[hairStyle];
+}
 
 function person(
   name: string,
@@ -21,24 +47,13 @@ function person(
   body: HumanFigure['body'],
   color = '#d8799e',
 ): ArchetypeInput {
-  const tone = ({
-    '#f3c7a6': '🏻',
-    '#e8b18b': '🏼',
-    '#c98258': '🏽',
-    '#94593f': '🏾',
-    '#603b32': '🏿',
-  } as Record<string, string>)[skin] ?? '';
-  const feminine = /mujer|niña|abuela|bisabuela/i.test(name);
-  const masculine = /hombre|niño|abuelo|bisabuelo/i.test(name);
-  const special = body === 'pregnant' ? icon : body === 'baby' ? icon : undefined;
-  const fullBodyIcon = special
-    ?? (feminine ? `🧍${tone}‍♀️` : masculine ? `🧍${tone}‍♂️` : `🧍${tone}`);
+  const figure = { skin, hair, outfit, hairStyle, body };
   return {
     name,
-    icon: fullBodyIcon,
-    detail,
+    icon: getPersonIcon(name, figure, icon),
+    detail: briefPersonDetail(detail, skin, hairStyle, body),
     color,
-    figure: { skin, hair, outfit, hairStyle, body },
+    figure,
   };
 }
 
@@ -98,9 +113,9 @@ const elders = [
   person('Bisabuela', '👵🏽', 'Generación anterior', skinTones.medium, '#a69a91', '#ba8b5a', 'short', 'elder', '#9373c5'),
   person('Bisabuelo', '👴🏽', 'Generación anterior', skinTones.medium, '#a69a91', '#a16e72', 'short', 'elder', '#9373c5'),
   person('Ancestro sabio', '🧓🏻', 'Ancestro/a', skinTones.light, '#b8aaa1', '#687da4', 'long', 'elder', '#9373c5'),
-  person('Ancestro excluido', '🌙', 'Persona apartada del sistema', skinTones.brown, '#241c1a', '#6c6388', 'long', 'memorial', '#9373c5'),
-  person('Persona fallecida', '🕯️', 'En memoria · cuerpo completo', skinTones.medium, '#302521', '#697188', 'short', 'memorial', '#9373c5'),
-  person('Familiar fallecido', '🕊️', 'En memoria de la familia', skinTones.light, '#b5aaa3', '#737e9a', 'short', 'memorial', '#9373c5'),
+  person('Ancestro excluido', '🧓🏾', 'Persona apartada del sistema', skinTones.brown, '#241c1a', '#6c6388', 'long', 'memorial', '#9373c5'),
+  person('Persona fallecida', '🧑🏽', 'En memoria · cuerpo completo', skinTones.medium, '#302521', '#697188', 'short', 'memorial', '#9373c5'),
+  person('Familiar fallecido', '🧑🏻‍🦳', 'En memoria de la familia', skinTones.light, '#b5aaa3', '#737e9a', 'short', 'memorial', '#9373c5'),
 ];
 
 const children = [
@@ -128,8 +143,9 @@ const children = [
 ];
 
 const roles = [
+  symbol('Persona Sapiens', 'sapiens:persona-sapiens-01.svg', 'Figura editorial de cuerpo completo', '#14b8a6'),
   symbol('Matriarca', '👑', 'Rol familiar', '#14b8a6'),
-  symbol('Patriarca', '🧔🏻‍🦳', 'Rol familiar', '#14b8a6'),
+  symbol('Patriarca', '🧍🏻‍♂️', 'Rol familiar', '#14b8a6'),
   symbol('Madre adoptiva', '👩‍👧', 'Vínculo de cuidado', '#14b8a6'),
   symbol('Padre adoptivo', '👨‍👦', 'Vínculo de cuidado', '#14b8a6'),
   symbol('Tío / Tía', '🧑‍🤝‍🧑', 'Familia extensa', '#14b8a6'),
@@ -198,10 +214,31 @@ const groups: Array<[Category, ArchetypeInput[]]> = [
 
 export const categoryOrder = groups.map(([category]) => category);
 
+export const essentialArchetypeNames = new Set([
+  'Persona Sapiens',
+  'Mujer adulta', 'Mujer joven', 'Mujer adulta mayor', 'Mujer embarazada',
+  'Hombre adulto', 'Hombre joven', 'Hombre adulto mayor',
+  'Abuela materna', 'Abuelo materno', 'Ancestro sabio', 'Persona fallecida', 'Familiar fallecido', 'Ancestro excluido',
+  'Hijo/a primogénito', 'Hijo/a menor', 'Bebé', 'Niña pequeña', 'Niño pequeño', 'Niño interior',
+  'Matriarca', 'Patriarca', 'Madre adoptiva', 'Padre adoptivo', 'Pareja actual', 'Ex-pareja', 'Tío / Tía', 'Primo / Prima',
+  'Perro (Lealtad)', 'Gato (Intuitivo)', 'Caballo (Fuerza)', 'Águila (Visión)', 'Mariposa (Transformación)', 'Serpiente (Sanación)', 'Tortuga (Longevidad)',
+  'Alegría', 'Amor', 'Calma', 'Gratitud', 'Miedo', 'Tristeza', 'Duelo', 'Enojo', 'Culpa', 'Vergüenza', 'Ansiedad', 'Soledad', 'Rechazo', 'Confianza', 'Esperanza', 'Alivio',
+  'Trabajo', 'Dinero', 'Salud y bienestar', 'Hogar propio', 'Estudios', 'Viaje', 'Nuevo proyecto', 'Éxito', 'Celebración', 'Oportunidad',
+  'Dinero / Abundancia', 'Enfermedad / Síntoma', 'Destino', 'Trauma / Secreto', 'Muerte', 'País de origen', 'Trabajo / Vocación', 'Casa / Hogar', 'Guerra / Migración', 'Unión familiar',
+]);
+
+let humanFigureIndex = 0;
 export const archetypes: Archetype[] = groups.flatMap(([category, items]) =>
-  items.map((item, index) => ({
+  items.map((item, index) => {
+    const result: Archetype = {
     ...item,
     id: `${category}-${index}`,
     category,
-  })),
+    };
+    if (result.figure) {
+      result.icon = `sapiens:persona-sapiens-${String((humanFigureIndex % 18) + 1).padStart(2, '0')}.svg`;
+      humanFigureIndex += 1;
+    }
+    return result;
+  }),
 );

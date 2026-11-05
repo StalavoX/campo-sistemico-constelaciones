@@ -9,6 +9,8 @@ Aplicación web local e instalable para crear representaciones visuales de sesio
 - Vue 3 y TypeScript para la interfaz y el modelo de datos.
 - Vite para desarrollo, compilación y publicación estática.
 - SVG para el tablero interactivo y sus exportaciones.
+- SVG Twemoji locales para que los iconos se vean igual en distintos sistemas y funcionen offline.
+- Figuras humanas completas de Sapiens, almacenadas localmente para mantener una anatomía coherente y reconocible.
 - IndexedDB para varias sesiones locales con guardado automático.
 - Web App Manifest y service worker para instalación y uso offline después de la primera carga.
 
@@ -56,8 +58,8 @@ La configuración de Vite usa rutas relativas para funcionar en una URL de proye
 ## Controles
 
 - Arrastrar una figura cambia su posición; activa la cuadrícula para ajustar el movimiento.
-- El catálogo incluye iconos de personas de cuerpo completo y diversos tonos de piel, además de emociones, logros, proyectos y conceptos; usan la misma estética de emoji a color que los animales.
-- Selecciona una figura para ajustar el nombre y tamaño; elige Frente, Derecha, Espalda o Izquierda para orientar la mirada sin poner el cuerpo de cabeza.
+- El catálogo usa iconos SVG Twemoji a color, incluidos los de personas de cuerpo completo; las descripciones muestran solo el rasgo principal.
+- Selecciona una figura para ajustar el nombre y tamaño; elige Arriba, Derecha, Abajo o Izquierda para indicar su dirección con la flecha y una inclinación visual suave.
 - Usa el botón **A+** en la barra superior para ampliar el texto de la interfaz.
 - Usa **Vínculo** y selecciona dos figuras para crear una relación; selecciónala en el mapa o en la lista para editar su tipo, etiqueta y color.
 - `Ctrl/Cmd + Z` deshace, `Ctrl/Cmd + Y` rehace, `Ctrl/Cmd + S` guarda y `Ctrl/Cmd + K` busca.
@@ -71,3 +73,7 @@ Las sesiones quedan en IndexedDB del navegador del usuario. Borrar los datos del
 ## Licencia
 
 MIT.
+
+Las ilustraciones Twemoji © Twitter, Inc. y otros colaboradores se distribuyen bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). La colección SVG local se obtiene de [@twemoji/svg](https://github.com/SamuelKopp/twemoji-svg), cuya adaptación del paquete se distribuye bajo MIT.
+
+Las figuras humanas se exportaron manualmente desde [Sapiens](https://sapiens.ui8.net/). Antes de redistribuir el proyecto, revisa los términos de licencia de UI8 correspondientes a la cuenta o plan utilizado.
