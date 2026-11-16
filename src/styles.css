@@ -179,7 +179,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
   50% { opacity: 1; }
   100% { opacity: .4; }
 }
-.panel-backdrop { position: fixed; inset: 0; background: rgba(5, 9, 20, .6); backdrop-filter: blur(3px); z-index: 4; }
+.panel-backdrop { display: none; }
 .coordinates { display: flex; justify-content: space-between; margin: 20px 18px 0; color: #a0abc0; font-size: 11px; }
 .coordinates span { color: #c5cde0; font-variant-numeric: tabular-nums; }
 .session-form { padding-top: 4px; }
@@ -247,6 +247,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
   .catalog-panel { left: 0; transform: translateX(-105%); }
   .details-panel { right: 0; transform: translateX(105%); }
   .catalog-panel.mobile-open, .details-panel.mobile-open { transform: translateX(0); }
+  .panel-backdrop { display: block; position: fixed; inset: 0; background: rgba(5, 9, 20, .6); backdrop-filter: blur(3px); z-index: 4; }
   .mobile-toggle, .mobile-close { display: grid; }
   .canvas-toolbar { min-height: 66px; }
   .canvas-context>.eyebrow, .session-client { display: none; }
