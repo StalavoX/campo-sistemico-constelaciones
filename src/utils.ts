@@ -109,11 +109,13 @@ export function validateSession(value: unknown): Session {
     if (lineIds.has(id)) throw new Error(`El identificador del vínculo ${index + 1} está duplicado.`);
     lineIds.add(id);
     const kind = ['solid', 'dashed', 'dotted'].includes(line.kind) ? line.kind : 'solid';
+    const arrow = line.arrow && ['none', 'forward', 'both'].includes(line.arrow) ? line.arrow : 'none';
     return {
       id,
       from: line.from,
       to: line.to,
       kind,
+      arrow,
       label: typeof line.label === 'string' && line.label.length <= 60 ? line.label : 'Vínculo',
       color: typeof line.color === 'string' && /^#[\da-f]{6}$/i.test(line.color) ? line.color : '#a5b4fc',
     };
@@ -143,4 +145,10 @@ export function getZone(x: number, y: number): string {
 export function getClockHour(x: number, y: number): number | null {
   if (Math.hypot(x - 500, y - 500) < 24) return null;
   return Math.round((Math.atan2(x - 500, 500 - y) * 6 / Math.PI + 12) % 12) || 12;
+}
+
+export function formatClockPosition(x: number, y: number): string {
+  const zone = getZone(x, y);
+  const hour = getClockHour(x, y);
+  return hour === null ? `${zone} · Centro` : `${zone} · ${hour}h`;
 }

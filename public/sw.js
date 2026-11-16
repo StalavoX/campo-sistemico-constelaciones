@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campo-sistemico-v3';
+const CACHE_NAME = 'campo-sistemico-v4';
 const CORE_ASSETS = ['./', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -44,6 +44,34 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+
+  const url = new URL(event.request.url);
+  const isStaticAsset = url.pathname.includes('/twemoji/') ||
+    url.pathname.includes('/sapiens/') ||
+    url.pathname.includes('/assets/') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.png') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.js');
+
+  // Estrategia Cache-First para recursos inmutables y estáticos
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.match(event.request, { ignoreVary: true }).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        });
+      }),
+    );
+    return;
+  }
+
+  // Estrategia Network-First con fallback a caché para navegación y documentos
   event.respondWith(
     fetch(event.request)
       .then((response) => {

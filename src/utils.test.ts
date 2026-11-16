@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getClockHour, getOrientationLabel, getTwemojiAssetFilename, getZone, normalizeOrientation, validateSession } from './utils';
+import { formatClockPosition, getClockHour, getOrientationLabel, getTwemojiAssetFilename, getZone, normalizeOrientation, validateSession } from './utils';
 
 const validSession = {
   id: 'session-1',
@@ -23,9 +23,13 @@ describe('validación de sesiones', () => {
   });
 
   it('acepta los datos de sesión y conserva los vínculos válidos', () => {
-    const result = validateSession(validSession);
+    const result = validateSession({
+      ...validSession,
+      lines: [{ ...validSession.lines[0], arrow: 'forward' }],
+    });
     expect(result.nodes).toHaveLength(2);
     expect(result.lines[0]?.label).toBe('Apoyo');
+    expect(result.lines[0]?.arrow).toBe('forward');
   });
 
   it('rechaza vínculos que apuntan a elementos inexistentes', () => {
@@ -115,6 +119,11 @@ describe('posición en el reloj', () => {
     expect(getClockHour(500, 100)).toBe(12);
     expect(getClockHour(900, 500)).toBe(3);
     expect(getClockHour(500, 500)).toBeNull();
+  });
+
+  it('formatea la ubicación combinando zona y hora', () => {
+    expect(formatClockPosition(500, 500)).toBe('Núcleo · Centro');
+    expect(formatClockPosition(900, 500)).toBe('Exterior · 3h');
   });
 });
 

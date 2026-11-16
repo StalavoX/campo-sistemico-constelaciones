@@ -10,6 +10,7 @@ export type Category =
   | 'conceptos';
 
 export type RelationshipKind = 'solid' | 'dashed' | 'dotted';
+export type RelationshipArrow = 'none' | 'forward' | 'both';
 
 export interface HumanFigure {
   skin: string;
@@ -46,6 +47,7 @@ export interface FieldLine {
   from: string;
   to: string;
   kind: RelationshipKind;
+  arrow?: RelationshipArrow;
   label: string;
   color: string;
 }

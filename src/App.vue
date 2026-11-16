@@ -3,10 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FieldBoard from './components/FieldBoard.vue';
 import UiIcon from './components/UiIcon.vue';
 import { archetypes, categoryOrder, essentialArchetypeNames } from './data/archetypes';
-import { listSessions, removeSession, saveSession } from './storage';
+import { listSessions, removeSession, saveAllSessions, saveSession } from './storage';
 import type { Category, FieldLine, FieldNode, Session } from './types';
 import { categoryLabels } from './types';
-import { cloneState, createSession, getOrientationLabel, getTwemojiAssetPath, getZone, validateSession } from './utils';
+import { cloneState, createSession, formatClockPosition, getOrientationLabel, getTwemojiAssetPath, validateSession } from './utils';
 
 type Snapshot = { nodes: FieldNode[]; lines: FieldLine[] };
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
@@ -15,6 +15,7 @@ const session = ref<Session>(createSession('Mi primera sesión'));
 const sessions = ref<Session[]>([]);
 const search = ref('');
 const category = ref<Category | 'all'>('all');
+const catalogScope = ref<'essential' | 'all'>('essential');
 const selectedNodeId = ref<string | null>(null);
 const selectedLineId = ref<string | null>(null);
 const connectMode = ref(false);
@@ -23,17 +24,32 @@ const snapToGrid = ref(false);
 const showCatalog = ref(false);
 const showDetails = ref(false);
 const largeText = ref(false);
+const theme = ref<'dark' | 'light'>(
+  (typeof localStorage !== 'undefined' && localStorage.getItem('campo-sistemico-theme') === 'light') ? 'light' : 'dark',
+);
+const isDark = computed(() => theme.value === 'dark');
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+  try {
+    localStorage.setItem('campo-sistemico-theme', theme.value);
+  } catch {
+    // noop
+  }
+}
 const saveStatus = ref<'saved' | 'saving' | 'error'>('saved');
 const toastMessage = ref('');
 const installEvent = ref<InstallEvent | null>(null);
 const reportVisible = ref(false);
 const reportImage = ref('');
 const importInput = ref<HTMLInputElement | null>(null);
+const importBackupInput = ref<HTMLInputElement | null>(null);
 const searchInput = ref<HTMLInputElement | null>(null);
 let saveTimer = 0;
 let toastTimer = 0;
 const history = ref<Snapshot[]>([]);
 const historyIndex = ref(-1);
+
 const directions = [
   { rotation: 0, label: 'Arriba', icon: 'up' },
   { rotation: 90, label: 'Derecha', icon: 'right' },
@@ -41,15 +57,47 @@ const directions = [
   { rotation: 270, label: 'Izquierda', icon: 'left' },
 ] as const;
 
+const quickColors = [
+  '#6366f1',
+  '#d8799e',
+  '#628bd2',
+  '#9373c5',
+  '#14b8a6',
+  '#10b981',
+  '#ec8a62',
+  '#e7aa56',
+  '#64748b',
+  '#ef4444',
+];
+
+const relationshipPresets = [
+  { label: 'Apoyo', kind: 'solid' as const, arrow: 'none' as const, color: '#6366f1' },
+  { label: 'Tensión / Conflicto', kind: 'dashed' as const, arrow: 'both' as const, color: '#f43f5e' },
+  { label: 'Distancia / Corte', kind: 'dotted' as const, arrow: 'none' as const, color: '#94a3b8' },
+  { label: 'Mirada hacia', kind: 'solid' as const, arrow: 'forward' as const, color: '#38bdf8' },
+  { label: 'Lealtad invisible', kind: 'dashed' as const, arrow: 'forward' as const, color: '#a855f7' },
+];
+
 const filteredArchetypes = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('es');
-  const source = archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es')));
+  const source = (!query && catalogScope.value === 'essential')
+    ? archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es')))
+    : archetypes;
+
   return source.filter((item) => {
     const categoryMatches = category.value === 'all' || item.category === category.value;
     const queryMatches = !query || `${item.name} ${item.detail} ${categoryLabels[item.category]}`.toLocaleLowerCase('es').includes(query);
     return categoryMatches && queryMatches;
   });
 });
+
+const totalScopeArchetypesCount = computed(() => {
+  if (catalogScope.value === 'essential') {
+    return archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es'))).length;
+  }
+  return archetypes.length;
+});
+
 const selectedNode = computed(() => session.value.nodes.find((node) => node.id === selectedNodeId.value) ?? null);
 const selectedLine = computed(() => session.value.lines.find((line) => line.id === selectedLineId.value) ?? null);
 const totalCount = computed(() => session.value.nodes.length);
@@ -73,16 +121,27 @@ function commitHistory() {
   historyIndex.value = history.value.length - 1;
 }
 
+function cleanDanglingSelection() {
+  if (selectedNodeId.value && !session.value.nodes.some((n) => n.id === selectedNodeId.value)) {
+    selectedNodeId.value = null;
+  }
+  if (selectedLineId.value && !session.value.lines.some((l) => l.id === selectedLineId.value)) {
+    selectedLineId.value = null;
+  }
+}
+
 function undo() {
   if (historyIndex.value <= 0) return;
   historyIndex.value -= 1;
   Object.assign(session.value, cloneState(history.value[historyIndex.value]!));
+  cleanDanglingSelection();
 }
 
 function redo() {
   if (historyIndex.value >= history.value.length - 1) return;
   historyIndex.value += 1;
   Object.assign(session.value, cloneState(history.value[historyIndex.value]!));
+  cleanDanglingSelection();
 }
 
 function scheduleSave() {
@@ -156,7 +215,7 @@ function activateNode(id: string) {
     selectedNodeId.value = id;
     showToast('Selecciona el segundo elemento para crear el vínculo.');
   } else if (firstConnectionNode.value !== id) {
-    if (session.value.lines.some((line) => line.from === firstConnectionNode.value && line.to === id || line.from === id && line.to === firstConnectionNode.value)) {
+    if (session.value.lines.some((line) => (line.from === firstConnectionNode.value && line.to === id) || (line.from === id && line.to === firstConnectionNode.value))) {
       showToast('Ya existe un vínculo entre estos elementos.');
     } else {
       session.value.lines.push({
@@ -164,6 +223,7 @@ function activateNode(id: string) {
         from: firstConnectionNode.value,
         to: id,
         kind: 'solid',
+        arrow: 'none',
         label: 'Vínculo',
         color: '#a5b4fc',
       });
@@ -186,8 +246,8 @@ function toggleConnect() {
 function moveNode(id: string, x: number, y: number) {
   const node = session.value.nodes.find((item) => item.id === id);
   if (node) {
-    node.x = x;
-    node.y = y;
+    node.x = Math.min(960, Math.max(40, x));
+    node.y = Math.min(960, Math.max(40, y));
   }
 }
 
@@ -215,6 +275,15 @@ function centerNodes() {
   });
   commitHistory();
   showToast('Elementos distribuidos alrededor del centro.');
+}
+
+function applyLinePreset(preset: typeof relationshipPresets[number]) {
+  if (!selectedLine.value) return;
+  selectedLine.value.label = preset.label;
+  selectedLine.value.kind = preset.kind;
+  selectedLine.value.arrow = preset.arrow;
+  selectedLine.value.color = preset.color;
+  commitHistory();
 }
 
 async function createNewSession() {
@@ -281,12 +350,26 @@ function downloadBlob(blob: Blob, fileName: string) {
   link.href = url;
   link.download = fileName;
   link.click();
+  link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function exportJson() {
   downloadBlob(new Blob([JSON.stringify(session.value, null, 2)], { type: 'application/json' }), `${safeFileName(session.value.name)}.json`);
   showToast('Sesión exportada como JSON.');
+}
+
+function exportAllSessionsJson() {
+  const payload = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    sessions: sessions.value,
+  };
+  downloadBlob(
+    new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+    `respaldo-completo-campo-sistemico-${new Date().toISOString().slice(0, 10)}.json`,
+  );
+  showToast(`Respaldo de ${sessions.value.length} sesiones exportado.`);
 }
 
 function safeFileName(value: string) {
@@ -314,6 +397,37 @@ async function importJson(event: Event) {
   }
 }
 
+async function importBackup(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const rawList: unknown[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed.sessions) ? parsed.sessions : [];
+    if (!rawList.length) throw new Error('El archivo no contiene un listado de sesiones válido.');
+
+    const validList = rawList.map(validateSession);
+    const existingIds = new Set(sessions.value.map((s) => s.id));
+    let importedCount = 0;
+    for (const item of validList) {
+      if (existingIds.has(item.id)) {
+        item.id = crypto.randomUUID();
+        item.name = `${item.name} (respaldo)`;
+      }
+      sessions.value.unshift(cloneState(item));
+      existingIds.add(item.id);
+      importedCount += 1;
+    }
+    await saveAllSessions(sessions.value);
+    showToast(`Se restauraron ${importedCount} sesiones del respaldo.`);
+  } catch (error) {
+    showToast(`Error al restaurar respaldo: ${error instanceof Error ? error.message : 'archivo inválido'}`);
+  } finally {
+    input.value = '';
+  }
+}
+
 async function svgDataUrl(): Promise<string> {
   const svg = document.querySelector<SVGSVGElement>('.field-board');
   if (!svg) throw new Error('No se encontró el tablero para exportar.');
@@ -322,13 +436,24 @@ async function svgDataUrl(): Promise<string> {
   clone.setAttribute('width', '1000');
   clone.setAttribute('height', '1000');
   clone.querySelectorAll('[tabindex]').forEach((element) => element.removeAttribute('tabindex'));
+
+  // Limpiar estilos e indicadores de selección o conexión activa en la exportación
+  clone.querySelectorAll('.node-selected, .relation-selected, .node-connect-source').forEach((el) => {
+    el.classList.remove('node-selected', 'relation-selected', 'node-connect-source');
+  });
+  clone.querySelectorAll('.relation-hitbox, .connect-pulse').forEach((el) => el.remove());
+  clone.querySelectorAll('[stroke="#fbbf24"]').forEach((circle) => {
+    circle.setAttribute('stroke', '#f8fafc');
+    circle.setAttribute('stroke-width', '3');
+  });
+
   const styles = document.createElementNS('http://www.w3.org/2000/svg', 'style');
   styles.textContent = `
-    .clock-hour-label circle { fill: #0f172a; fill-opacity: .84; stroke: #94a3b8; stroke-opacity: .32; }
-    .clock-hour-label text { fill: #c7d2fe; text-anchor: middle; font: 600 18px Arial, sans-serif; }
-    .node-label rect { fill: #080d19; fill-opacity: .94; stroke: #94a3b8; stroke-opacity: .42; }
-    .node-label text { fill: #f8fafc; text-anchor: middle; font: 600 18px Arial, sans-serif; }
-    .board-center { fill: #818cf8; stroke: #e0e7ff; stroke-width: 3; }
+    .clock-hour-label circle { fill: ${isDark.value ? '#0f172a' : '#ffffff'}; fill-opacity: .92; stroke: #94a3b8; stroke-opacity: .4; }
+    .clock-hour-label text { fill: ${isDark.value ? '#c7d2fe' : '#312e81'}; text-anchor: middle; font: 600 18px Arial, sans-serif; }
+    .node-label rect { fill: ${isDark.value ? '#080d19' : '#ffffff'}; fill-opacity: .95; stroke: #94a3b8; stroke-opacity: .42; }
+    .node-label text { fill: ${isDark.value ? '#f8fafc' : '#0f172a'}; text-anchor: middle; font: 600 18px Arial, sans-serif; }
+    .board-center { fill: #818cf8; stroke: ${isDark.value ? '#e0e7ff' : '#312e81'}; stroke-width: 3; }
   `;
   clone.insertBefore(styles, clone.firstChild);
   await Promise.all(Array.from(clone.querySelectorAll('image')).map(async (image) => {
@@ -351,7 +476,7 @@ async function exportPng() {
     canvas.height = 1600;
     const context = canvas.getContext('2d');
     if (!context) throw new Error('No se pudo crear el lienzo de exportación.');
-    context.fillStyle = '#0b1020';
+    context.fillStyle = isDark.value ? '#0b1020' : '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error('No se pudo generar la imagen PNG.')), 'image/png'));
@@ -448,7 +573,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'large-text': largeText }">
+  <div class="app-shell" :class="{ 'large-text': largeText, 'theme-light': !isDark, 'theme-dark': isDark }">
+    <!-- Cortina de fondo móvil para cerrar paneles laterales al hacer clic fuera -->
+    <div
+      v-if="showCatalog || showDetails"
+      class="panel-backdrop"
+      aria-hidden="true"
+      @click="showCatalog = false; showDetails = false"
+    />
+
     <header class="topbar">
       <a class="brand" href="./" aria-label="Campo Sistémico, inicio">
         <span class="brand-mark"><UiIcon name="spark" :size="21" /></span>
@@ -466,6 +599,14 @@ onUnmounted(() => {
         <span class="save-indicator" :class="`save-${saveStatus}`" role="status">
           <i></i>{{ saveStatus === 'saved' ? 'Guardado' : saveStatus === 'saving' ? 'Guardando…' : 'Error al guardar' }}
         </span>
+        <button
+          class="icon-button theme-toggle"
+          :title="isDark ? 'Cambiar a modo blanco' : 'Cambiar a modo negro'"
+          :aria-label="isDark ? 'Cambiar a modo blanco' : 'Cambiar a modo negro'"
+          @click="toggleTheme"
+        >
+          <UiIcon :name="isDark ? 'sun' : 'moon'" />
+        </button>
         <button class="icon-button text-size-toggle" :aria-pressed="largeText" :title="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" :aria-label="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" @click="largeText = !largeText">A+</button>
         <button v-if="installEvent" class="button button-subtle install-button" @click="installApp">Instalar app</button>
         <button class="icon-button mobile-toggle" aria-label="Abrir catálogo" @click="showCatalog = !showCatalog"><UiIcon name="menu" /></button>
@@ -476,7 +617,7 @@ onUnmounted(() => {
       <aside class="catalog-panel" :class="{ 'mobile-open': showCatalog }">
         <div class="panel-heading">
           <div><span class="eyebrow">BIBLIOTECA</span><h2>Elementos</h2></div>
-           <span class="count-pill">{{ filteredArchetypes.length }}</span>
+          <span class="count-pill">{{ filteredArchetypes.length }}</span>
           <button class="icon-button mobile-close" aria-label="Cerrar catálogo" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
         <label class="search-field">
@@ -484,8 +625,13 @@ onUnmounted(() => {
           <input ref="searchInput" v-model="search" type="search" placeholder="Buscar figura o concepto…" aria-label="Buscar elementos" />
           <kbd>⌘ K</kbd>
         </label>
-         <div class="category-list" role="group" aria-label="Filtrar por categoría">
-           <button :class="{ active: category === 'all' }" @click="category = 'all'">Todo <span>{{ archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es'))).length }}</span></button>
+        <!-- Selector de alcance: Esenciales o Catálogo completo -->
+        <div class="catalog-scope" role="group" aria-label="Alcance del catálogo">
+          <button :class="{ active: catalogScope === 'essential' }" @click="catalogScope = 'essential'">Esenciales</button>
+          <button :class="{ active: catalogScope === 'all' }" @click="catalogScope = 'all'">Todos</button>
+        </div>
+        <div class="category-list" role="group" aria-label="Filtrar por categoría">
+          <button :class="{ active: category === 'all' }" @click="category = 'all'">Todo <span>{{ totalScopeArchetypesCount }}</span></button>
           <button v-for="item in categoryOrder" :key="item" :class="{ active: category === item }" @click="category = item">
             {{ categoryLabels[item] }}
           </button>
@@ -540,7 +686,9 @@ onUnmounted(() => {
             :selected-node-id="selectedNodeId"
             :selected-line-id="selectedLineId"
             :connect-mode="connectMode"
+            :first-connection-node-id="firstConnectionNode"
             :snap-to-grid="snapToGrid"
+            :theme="theme"
             @activate="activateNode"
             @select-line="selectedLineId = $event; selectedNodeId = null; showDetails = true"
             @move="moveNode"
@@ -556,8 +704,13 @@ onUnmounted(() => {
           <div><span class="eyebrow">PROPIEDADES</span><h2>{{ selectedLine ? 'Vínculo' : selectedNode ? 'Elemento' : 'Sesión' }}</h2></div>
           <button class="icon-button mobile-close" aria-label="Cerrar detalles" @click="showDetails = false"><UiIcon name="close" /></button>
         </div>
+
+        <!-- Propiedades del elemento seleccionado -->
         <template v-if="selectedNode">
-          <div class="selected-preview" :style="{ '--accent': selectedNode.color }"><span><img :class="{ 'sapiens-asset': selectedNode.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(selectedNode.icon)" alt="" /></span><div><strong>{{ selectedNode.name }}</strong><small>{{ getZone(selectedNode.x, selectedNode.y) }}</small></div></div>
+          <div class="selected-preview" :style="{ '--accent': selectedNode.color }">
+            <span><img :class="{ 'sapiens-asset': selectedNode.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(selectedNode.icon)" alt="" /></span>
+            <div><strong>{{ selectedNode.name }}</strong><small>{{ formatClockPosition(selectedNode.x, selectedNode.y) }}</small></div>
+          </div>
           <label class="field-label">Nombre o rol<input v-model="selectedNode.name" maxlength="80" @change="commitHistory" /></label>
           <div class="field-label direction-control">
             <span>Orientación en el tablero <output>{{ getOrientationLabel(selectedNode.rotation) }}</output></span>
@@ -570,25 +723,71 @@ onUnmounted(() => {
                 :aria-pressed="selectedNode.rotation === direction.rotation"
                 :aria-label="direction.label"
                 :title="direction.label"
-                @click="selectedNode.rotation = direction.rotation; commitHistory"
+                @click="selectedNode.rotation = direction.rotation; commitHistory()"
               ><UiIcon :name="direction.icon" /></button>
             </div>
           </div>
+          <div class="field-label">
+            <span>Color del elemento</span>
+            <div class="color-picker-row">
+              <input v-model="selectedNode.color" type="color" aria-label="Color personalizado" @change="commitHistory" />
+              <div class="color-palette" role="group" aria-label="Paleta rápida de colores">
+                <button
+                  v-for="c in quickColors"
+                  :key="c"
+                  type="button"
+                  class="palette-swatch"
+                  :style="{ backgroundColor: c }"
+                  :class="{ active: selectedNode.color.toLowerCase() === c.toLowerCase() }"
+                  :title="`Color ${c}`"
+                  @click="selectedNode.color = c; commitHistory()"
+                />
+              </div>
+            </div>
+          </div>
           <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="0.6" max="1.8" step="0.1" @change="commitHistory" /></label>
-          <div class="coordinates">Posición <span>{{ selectedNode.x }}, {{ selectedNode.y }}</span></div>
+          <div class="coordinates">Posición <span>{{ formatClockPosition(selectedNode.x, selectedNode.y) }} ({{ selectedNode.x }}, {{ selectedNode.y }})</span></div>
           <button class="button button-danger full-width" @click="deleteSelected"><UiIcon name="trash" :size="16" />Eliminar elemento</button>
         </template>
+
+        <!-- Propiedades del vínculo seleccionado -->
         <template v-else-if="selectedLine">
-          <div class="selected-preview line-preview"><span><UiIcon name="link" :size="22" /></span><div><strong>{{ selectedLine.label }}</strong><small>Conexión entre dos elementos</small></div></div>
+          <div class="selected-preview line-preview">
+            <span><UiIcon name="link" :size="22" /></span>
+            <div><strong>{{ selectedLine.label }}</strong><small>Conexión entre dos elementos</small></div>
+          </div>
+          <div class="field-label">
+            <span>Plantillas rápidas</span>
+            <div class="relation-presets" role="group" aria-label="Plantillas rápidas de vínculos">
+              <button
+                v-for="preset in relationshipPresets"
+                :key="preset.label"
+                type="button"
+                class="preset-chip"
+                @click="applyLinePreset(preset)"
+              >{{ preset.label }}</button>
+            </div>
+          </div>
           <label class="field-label">Tipo de vínculo<input v-model="selectedLine.label" maxlength="60" placeholder="Ej. apoyo, tensión…" @change="commitHistory" /></label>
-          <label class="field-label">Estilo
+          <label class="field-label">Estilo de línea
             <select v-model="selectedLine.kind" @change="commitHistory">
-              <option value="solid">Continuo</option><option value="dashed">Discontinuo</option><option value="dotted">Punteado</option>
+              <option value="solid">Continuo</option>
+              <option value="dashed">Discontinuo</option>
+              <option value="dotted">Punteado</option>
+            </select>
+          </label>
+          <label class="field-label">Direccionalidad
+            <select v-model="selectedLine.arrow" @change="commitHistory">
+              <option value="none">Sin flecha (bidireccional tácita)</option>
+              <option value="forward">Hacia elemento destino (→)</option>
+              <option value="both">Bidireccional explícita (↔)</option>
             </select>
           </label>
           <label class="field-label">Color<input v-model="selectedLine.color" type="color" @change="commitHistory" /></label>
           <button class="button button-danger full-width" @click="deleteSelected"><UiIcon name="trash" :size="16" />Eliminar vínculo</button>
         </template>
+
+        <!-- Propiedades y formulario de la sesión -->
         <template v-else>
           <div class="session-form">
             <label class="field-label">Facilitador/a<input v-model="session.facilitator" maxlength="120" placeholder="Nombre profesional" /></label>
@@ -601,15 +800,20 @@ onUnmounted(() => {
           <div class="details-section">
             <div class="section-title"><span>Relaciones</span><small>{{ session.lines.length }}</small></div>
             <button v-for="line in session.lines" :key="line.id" class="relation-row" :class="{ chosen: selectedLineId === line.id }" @click="selectedLineId = line.id">
-              <i :style="{ backgroundColor: line.color }"></i><span>{{ line.label }}</span><small>{{ session.nodes.find(node => node.id === line.from)?.name }} ↔ {{ session.nodes.find(node => node.id === line.to)?.name }}</small>
+              <i :style="{ backgroundColor: line.color }"></i><span>{{ line.label }} {{ line.arrow === 'forward' ? '→' : line.arrow === 'both' ? '↔' : '' }}</span><small>{{ session.nodes.find(node => node.id === line.from)?.name }} ↔ {{ session.nodes.find(node => node.id === line.to)?.name }}</small>
             </button>
             <p v-if="!session.lines.length" class="muted-copy">Los vínculos que dibujes aparecerán aquí.</p>
           </div>
           <div class="details-section">
-            <div class="section-title"><span>Respaldo</span></div>
-            <button class="secondary-row" @click="exportJson">Exportar sesión JSON <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
-            <button class="secondary-row" @click="importInput?.click()">Importar sesión JSON <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
+            <div class="section-title"><span>Respaldo y datos</span></div>
+            <button class="secondary-row" @click="exportJson">Exportar sesión actual (JSON) <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
+            <button class="secondary-row" @click="importInput?.click()">Importar sesión (JSON) <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
             <input ref="importInput" class="sr-only" type="file" accept=".json,application/json" @change="importJson" />
+
+            <button class="secondary-row" @click="exportAllSessionsJson">Descargar copia completa de todas las sesiones <span><UiIcon name="download" :size="16" /></span></button>
+            <button class="secondary-row" @click="importBackupInput?.click()">Restaurar copia completa (JSON) <span><UiIcon name="arrow-up-right" :size="16" /></span></button>
+            <input ref="importBackupInput" class="sr-only" type="file" accept=".json,application/json" @change="importBackup" />
+
             <button class="secondary-row danger-row" @click="deleteSession">Eliminar esta sesión <span><UiIcon name="trash" :size="16" /></span></button>
           </div>
           <p class="disclaimer">Las notas son registros de trabajo; esta herramienta no realiza diagnósticos ni interpreta resultados.</p>
@@ -618,14 +822,79 @@ onUnmounted(() => {
     </div>
 
     <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
+
+    <!-- Sección de informe impreso / PDF -->
     <section v-if="reportVisible" class="print-report" aria-label="Informe de sesión">
-      <header class="report-header"><div><div class="report-brand"><span class="brand-mark"><UiIcon name="spark" :size="18" /></span> Campo Sistémico</div><h1>Informe de sesión</h1></div><div class="report-metadata"><strong>{{ session.name }}</strong><span>Fecha: {{ new Date().toLocaleDateString('es') }}</span><span>Facilitador/a: {{ session.facilitator || 'No especificado' }}</span><span>Cliente: {{ session.client || 'No especificado' }}</span></div></header>
-       <div class="report-stats"><div><strong>{{ session.nodes.length }}</strong><span>Elementos</span></div><div><strong>{{ session.lines.length }}</strong><span>Vínculos</span></div><div><strong>{{ session.notes ? 'Sí' : 'No' }}</strong><span>Observaciones</span></div></div>
-       <section class="report-section report-session-context"><h2>Contexto de la sesión</h2><dl><dt>Objetivo</dt><dd>{{ session.objective || 'No especificado' }}</dd><dt>Consentimiento</dt><dd>{{ session.consent ? 'Registrado' : 'No registrado' }}</dd><dt>Observaciones</dt><dd>{{ session.notes || 'Sin observaciones registradas.' }}</dd><dt>Cierre y seguimiento</dt><dd>{{ session.closing || 'Sin acuerdos de cierre registrados.' }}</dd></dl></section>
-      <section class="report-section"><h2>Mapa del campo</h2><img :src="reportImage" alt="Vista del reloj sistémico con elementos y vínculos" /></section>
-      <section class="report-section"><h2>Elementos en el campo</h2><table><thead><tr><th>Elemento</th><th>Zona</th><th>Dirección</th><th>Escala</th></tr></thead><tbody><tr v-for="node in session.nodes" :key="node.id"><td><img class="report-icon" :src="getTwemojiAssetPath(node.icon)" alt="" /> {{ node.name }}</td><td>{{ getZone(node.x, node.y) }}</td><td>{{ getOrientationLabel(node.rotation) }}</td><td>{{ node.scale.toFixed(1) }}×</td></tr></tbody></table><p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p></section>
-      <section class="report-section"><h2>Vínculos</h2><ul><li v-for="line in session.lines" :key="line.id">{{ line.label }}: {{ session.nodes.find(node => node.id === line.from)?.name }} ↔ {{ session.nodes.find(node => node.id === line.to)?.name }}</li></ul><p v-if="!session.lines.length" class="report-empty">No se registraron vínculos.</p></section>
-      <section class="report-section"><h2>Notas y observaciones</h2><p class="report-notes">{{ session.notes || 'Sin notas registradas.' }}</p></section>
+      <header class="report-header">
+        <div>
+          <div class="report-brand"><span class="brand-mark"><UiIcon name="spark" :size="18" /></span> Campo Sistémico</div>
+          <h1>Informe de sesión</h1>
+        </div>
+        <div class="report-metadata">
+          <strong>{{ session.name }}</strong>
+          <span>Fecha: {{ new Date().toLocaleDateString('es') }}</span>
+          <span>Facilitador/a: {{ session.facilitator || 'No especificado' }}</span>
+          <span>Cliente: {{ session.client || 'No especificado' }}</span>
+        </div>
+      </header>
+      <div class="report-stats">
+        <div><strong>{{ session.nodes.length }}</strong><span>Elementos</span></div>
+        <div><strong>{{ session.lines.length }}</strong><span>Vínculos</span></div>
+        <div><strong>{{ session.notes ? 'Sí' : 'No' }}</strong><span>Observaciones</span></div>
+      </div>
+      <section class="report-section report-session-context">
+        <h2>Contexto de la sesión</h2>
+        <dl>
+          <dt>Objetivo</dt>
+          <dd>{{ session.objective || 'No especificado' }}</dd>
+          <dt>Consentimiento</dt>
+          <dd>{{ session.consent ? 'Registrado' : 'No registrado' }}</dd>
+          <dt>Observaciones</dt>
+          <dd>{{ session.notes || 'Sin observaciones registradas.' }}</dd>
+          <dt>Cierre y seguimiento</dt>
+          <dd>{{ session.closing || 'Sin acuerdos de cierre registrados.' }}</dd>
+        </dl>
+      </section>
+      <section class="report-section">
+        <h2>Mapa del campo</h2>
+        <img :src="reportImage" alt="Vista del reloj sistémico con elementos y vínculos" />
+      </section>
+      <section class="report-section">
+        <h2>Elementos en el campo</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Elemento</th>
+              <th>Ubicación y hora</th>
+              <th>Dirección</th>
+              <th>Escala</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="node in session.nodes" :key="node.id">
+              <td><img class="report-icon" :src="getTwemojiAssetPath(node.icon)" alt="" /> {{ node.name }}</td>
+              <td>{{ formatClockPosition(node.x, node.y) }}</td>
+              <td>{{ getOrientationLabel(node.rotation) }}</td>
+              <td>{{ node.scale.toFixed(1) }}×</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-if="!session.nodes.length" class="report-empty">No se agregaron elementos a esta sesión.</p>
+      </section>
+      <section class="report-section">
+        <h2>Vínculos</h2>
+        <ul>
+          <li v-for="line in session.lines" :key="line.id">
+            {{ line.label }} ({{ line.arrow === 'forward' ? '→' : line.arrow === 'both' ? '↔' : '—' }}):
+            {{ session.nodes.find(node => node.id === line.from)?.name }} y {{ session.nodes.find(node => node.id === line.to)?.name }}
+          </li>
+        </ul>
+        <p v-if="!session.lines.length" class="report-empty">No se registraron vínculos.</p>
+      </section>
+      <section class="report-section">
+        <h2>Notas y observaciones</h2>
+        <p class="report-notes">{{ session.notes || 'Sin notas registradas.' }}</p>
+      </section>
       <footer class="report-footer">Informe generado localmente. Documento de apoyo visual; no constituye un diagnóstico.</footer>
     </section>
   </div>

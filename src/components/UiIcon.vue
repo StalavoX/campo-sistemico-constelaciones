@@ -1,6 +1,6 @@
 <script setup lang="ts">
 withDefaults(defineProps<{
-  name: 'spark' | 'plus' | 'copy' | 'menu' | 'close' | 'search' | 'shield' | 'undo' | 'redo' | 'link' | 'grid' | 'center' | 'download' | 'panel' | 'arrow-up-right' | 'trash' | 'up' | 'right' | 'down' | 'left' | 'print';
+  name: 'spark' | 'plus' | 'copy' | 'menu' | 'close' | 'search' | 'shield' | 'undo' | 'redo' | 'link' | 'grid' | 'center' | 'download' | 'panel' | 'arrow-up-right' | 'trash' | 'up' | 'right' | 'down' | 'left' | 'print' | 'sun' | 'moon';
   size?: number;
 }>(), {
   size: 18,
@@ -88,6 +88,13 @@ withDefaults(defineProps<{
     <template v-else-if="name === 'print'">
       <path d="M7 8V4h10v4M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
       <path d="M7 14h10v6H7zM17 11h.01" />
+    </template>
+    <template v-else-if="name === 'sun'">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </template>
+    <template v-else-if="name === 'moon'">
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
     </template>
     <template v-else>
       <path v-if="name === 'up'" d="m6 14 6-6 6 6" />
