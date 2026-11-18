@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campo-sistemico-v4';
+const CACHE_NAME = 'campo-sistemico-v5';
 const CORE_ASSETS = ['./', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
