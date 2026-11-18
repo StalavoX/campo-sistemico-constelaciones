@@ -40,6 +40,7 @@ export interface FieldNode {
   y: number;
   rotation: number;
   scale: number;
+  phrase?: string;
 }
 
 export interface FieldLine {
@@ -50,6 +51,7 @@ export interface FieldLine {
   arrow?: RelationshipArrow;
   label: string;
   color: string;
+  phrase?: string;
 }
 
 export interface Session {

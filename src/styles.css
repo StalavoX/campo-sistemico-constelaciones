@@ -95,12 +95,13 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .canvas-context { display: grid; min-width: 0; gap: 3px; }
 .session-title { width: min(320px, 32vw); padding: 0 !important; border: 0 !important; outline: none; background: transparent !important; font: 700 17px Manrope, sans-serif; letter-spacing: -.4px; }
 .session-client { overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.toolbar-actions { gap: 5px; }
+.toolbar-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .tool-button { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; gap: 6px; color: #aeb8cc; }
 .tool-button:disabled { opacity: .3; }
 .tool-active { border-color: rgba(165, 180, 252, .28); color: #dfe4ff; background: rgba(129, 140, 248, .16); }
 .tool-label { font-size: 11px; }
 .toolbar-divider { width: 1px; height: 24px; margin: 0 4px; background: var(--border-strong); }
+.report-button { min-height: 34px; margin-left: 2px; flex-shrink: 0; white-space: nowrap; }
 .button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 8px; padding: 0 13px; border: 1px solid transparent; border-radius: 9px; font-size: 10px; font-weight: 600; cursor: pointer; transition: filter .16s, transform .16s, background .16s; }
 .button:hover { filter: brightness(1.12); }
 .button-primary { border-color: rgba(165, 180, 252, .35); color: #f4f4ff; background: linear-gradient(135deg, #666cdb, #5259ba); box-shadow: 0 4px 18px rgba(99, 102, 241, .2); }
@@ -124,6 +125,10 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .node-label { pointer-events: none; }
 .node-label rect { fill: rgba(8, 13, 25, .92); stroke: rgba(148, 163, 184, .28); }
 .node-label text { fill: #f1f5f9; text-anchor: middle; font: 600 18px "DM Sans", sans-serif; }
+.node-label text.node-label-sub { fill: #cbd5e1; font: 500 13px "DM Sans", sans-serif; }
+.line-delete-badge { cursor: pointer; transition: transform .15s ease; filter: drop-shadow(0 3px 8px rgba(0, 0, 0, .5)); }
+.line-delete-badge:hover { transform: scale(1.22); }
+.line-delete-badge:focus-visible { outline: 2px solid #fbbf24; outline-offset: 3px; }
 .relation-line { cursor: pointer; pointer-events: stroke; }
 .relation-hitbox { cursor: pointer; pointer-events: stroke; }
 .relation-line:hover, .relation-selected { filter: drop-shadow(0 0 5px currentColor); }
@@ -250,6 +255,8 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
   .panel-backdrop { display: block; position: fixed; inset: 0; background: rgba(5, 9, 20, .6); backdrop-filter: blur(3px); z-index: 4; }
   .mobile-toggle, .mobile-close { display: grid; }
   .canvas-toolbar { min-height: 66px; }
+  .tool-label, .toolbar-divider { display: none; }
+  .report-button { min-height: 34px; padding: 0 9px; }
   .canvas-context>.eyebrow, .session-client { display: none; }
   .session-title { width: min(220px, 28vw); font-size: 14px; }
   .board-wrap { width: min(92vw, calc(100vh - 180px)); }
@@ -469,6 +476,9 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .theme-light .node-label text {
   fill: #0f172a;
 }
+.theme-light .node-label text.node-label-sub {
+  fill: #475569;
+}
 .theme-light .board-empty {
   color: #64748b;
 }
@@ -610,7 +620,8 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
   .report-stats span { color: #475569; font-size: 9pt; }
   .report-section { margin-top: 15px; break-inside: avoid; }
   .report-section h2 { margin: 0 0 7px; color: #312e81; font-size: 13pt; }
-  .report-section>img { display: block; width: 100%; max-height: 390px; object-fit: contain; border-radius: 9px; background: #0b1020; }
+  .report-section>img { display: block; width: 100%; max-height: 390px; object-fit: contain; border-radius: 9px; border: 1px solid #cbd5e1; background: #ffffff; }
+  .report-phrase { color: #4338ca; font-style: italic; font-weight: 500; }
   .report-section table { width: 100%; border-collapse: collapse; font-size: 9pt; }
   .report-section th, .report-section td { padding: 5px 7px; border: 1px solid #dbe3f0; text-align: left; }
   .report-section th { color: #312e81; background: #eef2ff; }

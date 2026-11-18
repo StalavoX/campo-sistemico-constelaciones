@@ -18,13 +18,13 @@ describe('catálogo de figuras y recursos', () => {
     expect(new Set(people.map((item) => item.figure!.skin)).size).toBe(5);
     expect(new Set(people.map((item) => item.figure!.hairStyle)).size).toBeGreaterThanOrEqual(5);
     expect(people.map((item) => item.figure!.body)).toEqual(expect.arrayContaining(['baby', 'pregnant', 'elder', 'memorial']));
-    expect(archetypes.find((item) => item.name === 'Mujer Afro')?.figure).toMatchObject({ skin: '#603b32', hairStyle: 'curly' });
-    expect(archetypes.find((item) => item.name === 'Hombre Asiático')?.figure).toMatchObject({ skin: '#f3c7a6', body: 'pants' });
-    expect(archetypes.find((item) => item.name === 'Mujer Afro')?.icon).toMatch(/^sapiens:persona-sapiens-/u);
+    expect(archetypes.find((item) => item.name === 'Mujer (cabello rizado oscuro)')?.figure).toMatchObject({ skin: '#603b32', hairStyle: 'curly' });
+    expect(archetypes.find((item) => item.name === 'Hombre (piel clara, cabello oscuro)')?.figure).toMatchObject({ skin: '#f3c7a6', body: 'pants' });
+    expect(archetypes.find((item) => item.name === 'Mujer (cabello rizado oscuro)')?.icon).toMatch(/^sapiens:persona-sapiens-/u);
     expect(archetypes.find((item) => item.name === 'Bebé')?.icon).toMatch(/^sapiens:persona-sapiens-/u);
     expect(archetypes.find((item) => item.name === 'Bebé')?.figure).toMatchObject({ body: 'baby' });
     expect(archetypes.some((item) => item.name === 'Mujer embarazada')).toBe(true);
-    expect(archetypes.some((item) => item.name === 'Niña afrodescendiente')).toBe(true);
+    expect(archetypes.some((item) => item.name === 'Niña (piel profunda, trenzas)')).toBe(true);
     expect(archetypes.some((item) => item.name === 'Persona fallecida')).toBe(true);
   });
 

@@ -97,6 +97,7 @@ export function validateSession(value: unknown): Session {
       y: Math.min(960, Math.max(40, node.y)),
       rotation: Number.isFinite(node.rotation) ? normalizeOrientation(node.rotation) : 0,
       scale: Number.isFinite(node.scale) ? Math.min(1.8, Math.max(0.6, node.scale)) : 1.5,
+      ...(typeof node.phrase === 'string' && node.phrase.trim() ? { phrase: node.phrase.slice(0, 200) } : {}),
       ...(figure ? { figure } : {}),
     };
   });
@@ -118,6 +119,7 @@ export function validateSession(value: unknown): Session {
       arrow,
       label: typeof line.label === 'string' && line.label.length <= 60 ? line.label : 'Vínculo',
       color: typeof line.color === 'string' && /^#[\da-f]{6}$/i.test(line.color) ? line.color : '#a5b4fc',
+      ...(typeof line.phrase === 'string' && line.phrase.trim() ? { phrase: line.phrase.slice(0, 200) } : {}),
     };
   });
   const now = new Date().toISOString();

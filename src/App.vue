@@ -264,6 +264,13 @@ function deleteSelected() {
   }
 }
 
+function deleteLineById(lineId: string) {
+  session.value.lines = session.value.lines.filter((line) => line.id !== lineId);
+  if (selectedLineId.value === lineId) selectedLineId.value = null;
+  commitHistory();
+  showToast('Vínculo eliminado');
+}
+
 function centerNodes() {
   const count = session.value.nodes.length;
   if (!count) return;
@@ -302,13 +309,13 @@ async function duplicateSession() {
   await persistSession();
   const copy = cloneState(session.value);
   copy.id = crypto.randomUUID();
-  copy.name = `${copy.name} (copia)`;
+  copy.name = `${copy.name} (Solución)`;
   copy.createdAt = new Date().toISOString();
   copy.updatedAt = copy.createdAt;
   session.value = copy;
   sessions.value.unshift(cloneState(copy));
   resetHistory();
-  showToast('Se creó una copia de la sesión.');
+  showToast('Se duplicó la constelación como imagen de solución.');
 }
 
 async function switchSession(event: Event) {
@@ -593,7 +600,7 @@ onUnmounted(() => {
           <option v-for="item in sessions" :key="item.id" :value="item.id">{{ item.name || 'Sesión sin título' }}</option>
         </select>
         <button class="icon-button" title="Crear nueva sesión" aria-label="Crear nueva sesión" @click="createNewSession"><UiIcon name="plus" /></button>
-        <button class="icon-button optional-action" title="Duplicar sesión actual" aria-label="Duplicar sesión actual" @click="duplicateSession"><UiIcon name="copy" /></button>
+        <button class="icon-button" title="Duplicar constelación (Movimiento / Imagen solución)" aria-label="Duplicar constelación" @click="duplicateSession"><UiIcon name="copy" /></button>
       </div>
       <div class="top-actions">
         <span class="save-indicator" :class="`save-${saveStatus}`" role="status">
@@ -672,7 +679,8 @@ onUnmounted(() => {
             <button class="tool-button" :class="{ 'tool-active': snapToGrid }" :aria-pressed="snapToGrid" title="Ajustar posiciones a cuadrícula" @click="snapToGrid = !snapToGrid"><UiIcon name="grid" /></button>
             <button class="tool-button" title="Distribuir alrededor del centro" :disabled="!totalCount" @click="centerNodes"><UiIcon name="center" /></button>
             <button class="tool-button" title="Exportar mapa a PNG" @click="exportPng"><UiIcon name="download" /> <span class="tool-label">PNG</span></button>
-            <button class="button button-primary report-button" @click="printReport"><UiIcon name="print" :size="16" />Informe PDF</button>
+            <span class="toolbar-divider"></span>
+            <button class="button button-primary report-button" title="Imprimir informe o guardar en PDF" @click="printReport"><UiIcon name="print" :size="16" /><span class="tool-label">Informe PDF</span></button>
             <button class="icon-button mobile-toggle" aria-label="Abrir detalles de sesión" @click="showDetails = !showDetails"><UiIcon name="panel" /></button>
           </div>
         </div>
@@ -691,6 +699,7 @@ onUnmounted(() => {
             :theme="theme"
             @activate="activateNode"
             @select-line="selectedLineId = $event; selectedNodeId = null; showDetails = true"
+            @delete-line="deleteLineById"
             @move="moveNode"
             @drag-end="commitHistory"
           />
@@ -746,6 +755,10 @@ onUnmounted(() => {
             </div>
           </div>
           <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="0.6" max="1.8" step="0.1" @change="commitHistory" /></label>
+          <label class="field-label">
+            <span>Frase sanadora / Hipótesis</span>
+            <input v-model="selectedNode.phrase" placeholder="Ej. «Te veo», «Tomo la vida de ti»…" maxlength="120" @change="commitHistory" />
+          </label>
           <div class="coordinates">Posición <span>{{ formatClockPosition(selectedNode.x, selectedNode.y) }} ({{ selectedNode.x }}, {{ selectedNode.y }})</span></div>
           <button class="button button-danger full-width" @click="deleteSelected"><UiIcon name="trash" :size="16" />Eliminar elemento</button>
         </template>
@@ -769,6 +782,10 @@ onUnmounted(() => {
             </div>
           </div>
           <label class="field-label">Tipo de vínculo<input v-model="selectedLine.label" maxlength="60" placeholder="Ej. apoyo, tensión…" @change="commitHistory" /></label>
+          <label class="field-label">
+            <span>Frase sanadora de vínculo</span>
+            <input v-model="selectedLine.phrase" placeholder="Ej. «Te honro y te dejo ir en paz»…" maxlength="120" @change="commitHistory" />
+          </label>
           <label class="field-label">Estilo de línea
             <select v-model="selectedLine.kind" @change="commitHistory">
               <option value="solid">Continuo</option>
@@ -868,6 +885,7 @@ onUnmounted(() => {
               <th>Ubicación y hora</th>
               <th>Dirección</th>
               <th>Escala</th>
+              <th v-if="session.nodes.some(n => n.phrase)">Frase sanadora / Hipótesis</th>
             </tr>
           </thead>
           <tbody>
@@ -876,6 +894,7 @@ onUnmounted(() => {
               <td>{{ formatClockPosition(node.x, node.y) }}</td>
               <td>{{ getOrientationLabel(node.rotation) }}</td>
               <td>{{ node.scale.toFixed(1) }}×</td>
+              <td v-if="session.nodes.some(n => n.phrase)">{{ node.phrase || '—' }}</td>
             </tr>
           </tbody>
         </table>
@@ -885,8 +904,9 @@ onUnmounted(() => {
         <h2>Vínculos</h2>
         <ul>
           <li v-for="line in session.lines" :key="line.id">
-            {{ line.label }} ({{ line.arrow === 'forward' ? '→' : line.arrow === 'both' ? '↔' : '—' }}):
+            <strong>{{ line.label }}</strong> ({{ line.arrow === 'forward' ? '→' : line.arrow === 'both' ? '↔' : '—' }}):
             {{ session.nodes.find(node => node.id === line.from)?.name }} y {{ session.nodes.find(node => node.id === line.to)?.name }}
+            <span v-if="line.phrase" class="report-phrase"> — «{{ line.phrase }}»</span>
           </li>
         </ul>
         <p v-if="!session.lines.length" class="report-empty">No se registraron vínculos.</p>

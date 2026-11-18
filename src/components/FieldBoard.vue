@@ -19,6 +19,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   activate: [id: string];
   selectLine: [id: string];
+  deleteLine: [id: string];
   move: [id: string, x: number, y: number];
   dragEnd: [];
 }>();
@@ -149,6 +150,44 @@ function getLineEndpoints(line: FieldLine) {
   return { fromNode, toNode, x1, y1, x2, y2, hasForwardArrow, hasBackwardArrow };
 }
 
+function getLineMidpoint(line: FieldLine) {
+  const fromNode = props.nodes.find((node) => node.id === line.from);
+  const toNode = props.nodes.find((node) => node.id === line.to);
+  if (!fromNode || !toNode) return null;
+  return {
+    x: Math.round((fromNode.x + toNode.x) / 2),
+    y: Math.round((fromNode.y + toNode.y) / 2),
+  };
+}
+
+function formatNodeLabel(name: string): { line1: string; line2?: string } {
+  const parenMatch = name.match(/^(.*?)\s*\((.*?)\)$/);
+  if (parenMatch) {
+    const main = parenMatch[1]!.trim();
+    const sub = parenMatch[2]!.trim();
+    const shortSub = sub.length > 20 ? `${sub.slice(0, 19)}…` : sub;
+    return { line1: main, line2: shortSub };
+  }
+  if (name.length > 18 && name.includes(' ')) {
+    const words = name.split(' ');
+    let line1 = '';
+    let line2 = '';
+    for (const word of words) {
+      if ((line1 + ' ' + word).trim().length <= 16 && !line2) {
+        line1 = (line1 + ' ' + word).trim();
+      } else {
+        line2 = (line2 + ' ' + word).trim();
+      }
+    }
+    if (line2) {
+      const shortLine2 = line2.length > 19 ? `${line2.slice(0, 18)}…` : line2;
+      return { line1, line2: shortLine2 };
+    }
+  }
+  const clean = name.length > 21 ? `${name.slice(0, 20)}…` : name;
+  return { line1: clean };
+}
+
 function backgroundClick(event: PointerEvent) {
   if ((event.target as Element).closest('[data-node-id], [data-line-id]')) return;
   if (!props.connectMode) emit('activate', '');
@@ -266,6 +305,23 @@ function backgroundClick(event: PointerEvent) {
             @click.stop="emit('selectLine', line.id)"
             @keydown.enter.stop="emit('selectLine', line.id)"
           />
+
+          <!-- Botón flotante para eliminar rápidamente el vínculo seleccionado -->
+          <g
+            v-if="selectedLineId === line.id && getLineMidpoint(line)"
+            class="line-delete-badge"
+            :transform="`translate(${getLineMidpoint(line)!.x} ${getLineMidpoint(line)!.y})`"
+            tabindex="0"
+            role="button"
+            aria-label="Eliminar vínculo"
+            @pointerdown.stop
+            @click.stop="emit('deleteLine', line.id)"
+            @keydown.enter.stop="emit('deleteLine', line.id)"
+            @keydown.space.stop="emit('deleteLine', line.id)"
+          >
+            <circle cx="0" cy="0" r="16" fill="#ef4444" stroke="#ffffff" stroke-width="2.5" />
+            <path d="M -5 -5 L 5 5 M 5 -5 L -5 5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+          </g>
         </template>
       </g>
 
@@ -332,8 +388,15 @@ function backgroundClick(event: PointerEvent) {
 
         <!-- Etiqueta con el nombre o rol -->
         <g class="node-label">
-          <rect x="-96" :y="node.figure ? 52 : 45" width="192" height="38" rx="10" />
-          <text :y="node.figure ? 77 : 70">{{ node.name.length > 21 ? `${node.name.slice(0, 20)}…` : node.name }}</text>
+          <template v-if="formatNodeLabel(node.name).line2">
+            <rect x="-96" :y="node.figure ? 50 : 43" width="192" height="46" rx="10" />
+            <text :y="node.figure ? 68 : 61" font-weight="600">{{ formatNodeLabel(node.name).line1 }}</text>
+            <text :y="node.figure ? 84 : 77" class="node-label-sub">{{ formatNodeLabel(node.name).line2 }}</text>
+          </template>
+          <template v-else>
+            <rect x="-96" :y="node.figure ? 52 : 45" width="192" height="38" rx="10" />
+            <text :y="node.figure ? 77 : 70">{{ formatNodeLabel(node.name).line1 }}</text>
+          </template>
         </g>
       </g>
 
