@@ -43,6 +43,18 @@ const HOURS = Array.from({ length: 12 }, (_, index) => {
   return { hour, x: 500 + Math.cos(angle) * 420, y: 500 + Math.sin(angle) * 420 };
 });
 
+const SPRITE_GAZE_VECTORS = [
+  { x: -0.707, y: -0.707 },
+  { x: 0, y: -1 },
+  { x: 0.707, y: -0.707 },
+  { x: -1, y: 0 },
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: -0.707, y: 0.707 },
+  { x: 0, y: 1 },
+  { x: 0.707, y: 0.707 },
+];
+
 const svgElement = ref<SVGSVGElement | null>(null);
 const draggingId = ref<string | null>(null);
 const dragOffset = ref({ x: 0, y: 0 });
@@ -125,6 +137,10 @@ function figureTransform(node: FieldNode): string | undefined {
   return undefined;
 }
 
+function spriteGazeVector(direction: number) {
+  return SPRITE_GAZE_VECTORS[direction]!;
+}
+
 function getLineEndpoints(line: FieldLine) {
   const fromNode = props.nodes.find((node) => node.id === line.from);
   const toNode = props.nodes.find((node) => node.id === line.to);
@@ -136,8 +152,8 @@ function getLineEndpoints(line: FieldLine) {
   const ux = dx / distance;
   const uy = dy / distance;
 
-  const rFrom = (fromNode.figure ? 44 : 38) * fromNode.scale;
-  const rTo = (toNode.figure ? 44 : 38) * toNode.scale;
+  const rFrom = (fromNode.figure || fromNode.sprite ? 44 : 38) * fromNode.scale;
+  const rTo = (toNode.figure || toNode.sprite ? 44 : 38) * toNode.scale;
 
   const hasForwardArrow = line.arrow === 'forward' || line.arrow === 'both';
   const hasBackwardArrow = line.arrow === 'both';
@@ -240,6 +256,9 @@ function backgroundClick(event: PointerEvent) {
           orient="auto-start-reverse"
         >
           <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="context-stroke" />
+        </marker>
+        <marker id="sprite-gaze-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="#f59e0b" />
         </marker>
       </defs>
 
@@ -346,15 +365,28 @@ function backgroundClick(event: PointerEvent) {
       >
         <!-- Flecha indicadora de orientación de la mirada -->
         <path
+          v-if="!node.sprite"
           :d="`M 0 ${-52 - 13 * node.scale} L -8 ${-40 - 13 * node.scale} L 8 ${-40 - 13 * node.scale} Z`"
           fill="#a5b4fc"
           :transform="`rotate(${node.rotation})`"
+        />
+        <line
+          v-if="node.sprite && node.sprite.direction !== 4"
+          x1="0"
+          y1="0"
+          :x2="spriteGazeVector(node.sprite.direction).x * 68 * node.scale"
+          :y2="spriteGazeVector(node.sprite.direction).y * 68 * node.scale"
+          stroke="#f59e0b"
+          stroke-width="3"
+          stroke-dasharray="5 4"
+          marker-end="url(#sprite-gaze-arrow)"
+          pointer-events="none"
         />
 
         <!-- Resplandor / Halo de origen en modo conexión -->
         <circle
           v-if="connectMode && firstConnectionNodeId === node.id"
-          :r="(node.figure ? 52 : 46) * node.scale"
+          :r="(node.figure || node.sprite ? 52 : 46) * node.scale"
           fill="none"
           stroke="#38bdf8"
           stroke-width="4"
@@ -364,8 +396,8 @@ function backgroundClick(event: PointerEvent) {
 
         <!-- Base circular del elemento -->
         <circle
-          v-if="!node.figure"
-          :r="(node.figure ? 42 : 36) * node.scale"
+          v-if="!node.figure && !node.sprite"
+          :r="(node.figure || node.sprite ? 42 : 36) * node.scale"
           :fill="node.color"
           :stroke="selectedNodeId === node.id ? '#fbbf24' : '#f8fafc'"
           :stroke-width="(selectedNodeId === node.id ? 5 : 3) * node.scale"
@@ -373,7 +405,7 @@ function backgroundClick(event: PointerEvent) {
         />
 
         <!-- Ilustración / Icono (Sapiens o Twemoji) -->
-        <g :transform="figureTransform(node)">
+        <g v-if="!node.sprite" :transform="figureTransform(node)">
           <image
             :href="getTwemojiAssetPath(node.icon)"
             :class="{ 'sapiens-asset': node.icon.startsWith('sapiens:') }"
@@ -385,17 +417,40 @@ function backgroundClick(event: PointerEvent) {
             aria-hidden="true"
           />
         </g>
+        <svg
+          v-else-if="node.sprite.spriteSheet"
+          :x="-36 * node.scale"
+          :y="-36 * node.scale"
+          :width="72 * node.scale"
+          :height="72 * node.scale"
+          :viewBox="`${node.sprite.direction % 3} ${Math.floor(node.sprite.direction / 3)} 1 1`"
+          preserveAspectRatio="xMidYMid meet"
+          overflow="hidden"
+          aria-hidden="true"
+        >
+          <image :href="node.sprite.src" x="0" y="0" width="3" height="3" preserveAspectRatio="none" />
+        </svg>
+        <image
+          v-else
+          :href="node.sprite.src"
+          :x="-36 * node.scale"
+          :y="-36 * node.scale"
+          :width="72 * node.scale"
+          :height="72 * node.scale"
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
+        />
 
         <!-- Etiqueta con el nombre o rol -->
         <g class="node-label">
           <template v-if="formatNodeLabel(node.name).line2">
-            <rect x="-96" :y="node.figure ? 50 : 43" width="192" height="46" rx="10" />
-            <text :y="node.figure ? 68 : 61" font-weight="600">{{ formatNodeLabel(node.name).line1 }}</text>
-            <text :y="node.figure ? 84 : 77" class="node-label-sub">{{ formatNodeLabel(node.name).line2 }}</text>
+            <rect x="-96" :y="node.figure || node.sprite ? 50 : 43" width="192" height="46" rx="10" />
+            <text :y="node.figure || node.sprite ? 68 : 61" font-weight="600">{{ formatNodeLabel(node.name).line1 }}</text>
+            <text :y="node.figure || node.sprite ? 84 : 77" class="node-label-sub">{{ formatNodeLabel(node.name).line2 }}</text>
           </template>
           <template v-else>
-            <rect x="-96" :y="node.figure ? 52 : 45" width="192" height="38" rx="10" />
-            <text :y="node.figure ? 77 : 70">{{ formatNodeLabel(node.name).line1 }}</text>
+            <rect x="-96" :y="node.figure || node.sprite ? 52 : 45" width="192" height="38" rx="10" />
+            <text :y="node.figure || node.sprite ? 77 : 70">{{ formatNodeLabel(node.name).line1 }}</text>
           </template>
         </g>
       </g>
@@ -408,7 +463,7 @@ function backgroundClick(event: PointerEvent) {
     <div v-if="nodes.length === 0" class="board-empty" aria-hidden="true">
       <span class="empty-star">✧</span>
       <strong>Tu espacio de trabajo</strong>
-      <span>Elige una figura del catálogo para comenzar</span>
+      <span>Elige una figura de la biblioteca para comenzar</span>
     </div>
   </div>
 </template>

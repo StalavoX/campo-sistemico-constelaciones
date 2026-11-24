@@ -36,12 +36,51 @@ export interface FieldNode {
   icon: string;
   color: string;
   figure?: HumanFigure;
+  sprite?: SpriteAppearance;
   x: number;
   y: number;
   rotation: number;
   scale: number;
   phrase?: string;
 }
+
+export interface SpriteAppearance {
+  src: string;
+  direction: number;
+  spriteSheet: boolean;
+}
+
+export interface SpriteLibraryItem {
+  id: string;
+  name: string;
+  category: string;
+  src: string;
+  spriteSheet: boolean;
+  equivalentId?: string;
+  isLibraryPrimary?: boolean;
+}
+
+export interface SpriteConstellationModuleOptions {
+  container: HTMLElement;
+  libraryOnly: true;
+  initialLibrary: SpriteLibraryItem[];
+  allowUploads: boolean;
+  onSelectSprite: (sprite: SpriteLibraryItem) => void;
+  onLibraryChange: (library: SpriteLibraryItem[]) => void;
+  onError: (error: unknown) => void;
+}
+
+export const spriteDirections = [
+  { index: 0, label: 'Arriba a la izquierda', icon: '↖' },
+  { index: 1, label: 'Arriba', icon: '↑' },
+  { index: 2, label: 'Arriba a la derecha', icon: '↗' },
+  { index: 3, label: 'Izquierda', icon: '←' },
+  { index: 4, label: 'Al frente', icon: '•' },
+  { index: 5, label: 'Derecha', icon: '→' },
+  { index: 6, label: 'Abajo a la izquierda', icon: '↙' },
+  { index: 7, label: 'Abajo', icon: '↓' },
+  { index: 8, label: 'Abajo a la derecha', icon: '↘' },
+] as const;
 
 export interface FieldLine {
   id: string;
@@ -67,6 +106,18 @@ export interface Session {
   updatedAt: string;
   nodes: FieldNode[];
   lines: FieldLine[];
+}
+
+export interface SpriteConstellationModuleInstance {
+  library: SpriteLibraryItem[];
+  visibleLibrary: SpriteLibraryItem[];
+  setSelectedSpriteSource(source: string | null): void;
+}
+
+declare global {
+  interface Window {
+    SpriteConstellationModule?: new (options: SpriteConstellationModuleOptions) => SpriteConstellationModuleInstance;
+  }
 }
 
 export const categoryLabels: Record<Category, string> = {

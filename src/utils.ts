@@ -1,4 +1,4 @@
-import type { FieldLine, FieldNode, HumanFigure, Session } from './types';
+import type { FieldLine, FieldNode, HumanFigure, Session, SpriteAppearance } from './types';
 import { twemojiAssetIds } from './data/twemoji-assets';
 
 export const cloneState = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -50,6 +50,38 @@ function validateFigure(value: unknown): HumanFigure | undefined {
   };
 }
 
+function isValidSpriteSource(src: string): boolean {
+  if (src.length > 8_000_000) return false;
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(src)) return true;
+
+  try {
+    const appOrigin = 'https://campo-sistemico.invalid';
+    const basePath = new URL(import.meta.env.BASE_URL, appOrigin).pathname.replace(/\/?$/, '/');
+    const source = new URL(src, appOrigin);
+    if (source.origin !== appOrigin || source.search || source.hash || !source.pathname.startsWith(basePath)) return false;
+
+    const assetPath = decodeURIComponent(source.pathname.slice(basePath.length));
+    return /^(?:sapiens|sprites-3x3)\/[^/]+\.(?:svg|png|jpe?g|webp|gif)$/i.test(assetPath);
+  } catch {
+    return false;
+  }
+}
+
+function validateSprite(value: unknown): SpriteAppearance | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const sprite = value as Partial<SpriteAppearance>;
+  if (typeof sprite.src !== 'string' ||
+      !isValidSpriteSource(sprite.src) ||
+      !Number.isInteger(sprite.direction) ||
+      sprite.direction! < 0 ||
+      sprite.direction! > 8) return undefined;
+  return {
+    src: sprite.src,
+    direction: sprite.direction!,
+    spriteSheet: typeof sprite.spriteSheet === 'boolean' ? sprite.spriteSheet : true,
+  };
+}
+
 export function createSession(name = 'Nueva sesión'): Session {
   const now = new Date().toISOString();
   return {
@@ -86,6 +118,7 @@ export function validateSession(value: unknown): Session {
     if (ids.has(node.id)) throw new Error(`El identificador del elemento ${index + 1} está duplicado.`);
     ids.add(node.id);
     const figure = validateFigure(node.figure);
+    const sprite = validateSprite(node.sprite);
     return {
       id: node.id,
       name: node.name,
@@ -99,6 +132,7 @@ export function validateSession(value: unknown): Session {
       scale: Number.isFinite(node.scale) ? Math.min(1.8, Math.max(0.6, node.scale)) : 1.5,
       ...(typeof node.phrase === 'string' && node.phrase.trim() ? { phrase: node.phrase.slice(0, 200) } : {}),
       ...(figure ? { figure } : {}),
+      ...(sprite ? { sprite } : {}),
     };
   });
   const lineIds = new Set<string>();

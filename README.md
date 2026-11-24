@@ -58,17 +58,18 @@ La configuración de Vite usa rutas relativas para funcionar en una URL de proye
 ## Controles
 
 - Arrastrar una figura cambia su posición; activa la cuadrícula para ajustar el movimiento.
-- El catálogo usa iconos SVG Twemoji a color, incluidos los de personas de cuerpo completo; las descripciones muestran solo el rasgo principal.
-- Selecciona una figura para ajustar el nombre y tamaño; elige Arriba, Derecha, Abajo o Izquierda para indicar su dirección con la flecha y una inclinación visual suave.
+- La biblioteca muestra una sola tarjeta por personaje emparejado: usa la miniatura de la figura individual y agrega su hoja 3×3 al tablero. Las hojas sin pareja también aparecen una sola vez.
+- Coloca figuras (SVG, PNG, JPG/JPEG, WebP o GIF) en `public/sapiens/` y hojas 3×3 en `public/sprites-3x3/`. Para vincular una figura con su hoja, usa el mismo nombre de archivo sin la extensión (por ejemplo, `hombre 1.png` y `hombre 1.jpg`). Al iniciar Vite o compilar, los manifiestos se actualizan automáticamente.
+- Selecciona una figura para ajustar su nombre, tamaño y dirección de mirada en ocho direcciones más la posición al frente.
 - Usa el botón **A+** en la barra superior para ampliar el texto de la interfaz.
 - Usa **Vínculo** y selecciona dos figuras para crear una relación; selecciónala en el mapa o en la lista para editar su tipo, etiqueta y color.
-- `Ctrl/Cmd + Z` deshace, `Ctrl/Cmd + Y` rehace, `Ctrl/Cmd + S` guarda y `Ctrl/Cmd + K` busca.
+- `Ctrl/Cmd + Z` deshace, `Ctrl/Cmd + Y` rehace y `Ctrl/Cmd + S` guarda.
 - `Delete` elimina la selección y `Esc` cancela el modo de vínculo.
-- En pantallas pequeñas, abre el catálogo o los detalles con sus respectivos botones.
+- En pantallas pequeñas, abre la biblioteca o los detalles con sus respectivos botones.
 
 ## Privacidad
 
-Las sesiones quedan en IndexedDB del navegador del usuario. Borrar los datos del navegador elimina también las sesiones; exporta respaldos JSON para conservarlas. El catálogo, estilos, fuentes del sistema e iconos no requieren recursos remotos.
+Las sesiones quedan en IndexedDB del navegador; las imágenes de la biblioteca se sirven desde las carpetas locales del proyecto y se incorporan a las sesiones para que los respaldos sigan mostrándolas. Las imágenes no se envían a ningún servidor.
 
 ## Licencia
 

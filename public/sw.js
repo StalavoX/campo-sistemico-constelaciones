@@ -1,5 +1,11 @@
-const CACHE_NAME = 'campo-sistemico-v5';
-const CORE_ASSETS = ['./', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'campo-sistemico-v7';
+const CORE_ASSETS = [
+  './',
+  './manifest.webmanifest',
+  './icon.svg',
+  './sapiens/manifest.json',
+  './sprites-3x3/manifest.json',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -25,10 +31,26 @@ self.addEventListener('install', (event) => {
       const sapiensManifestResponse = await fetch('./sapiens/manifest.json');
       if (!sapiensManifestResponse.ok) throw new Error('No se pudo cargar el catálogo Sapiens para uso offline.');
       const sapiensPaths = await sapiensManifestResponse.json();
-      if (!Array.isArray(sapiensPaths) || sapiensPaths.some((path) => typeof path !== 'string' || !path.startsWith('./sapiens/') || !path.endsWith('.svg'))) {
+      if (!Array.isArray(sapiensPaths) || sapiensPaths.some((path) =>
+        typeof path !== 'string' ||
+        !path.startsWith('./sapiens/') ||
+        !/\.(?:svg|png|jpe?g|webp|gif)$/i.test(path)
+      )) {
         throw new Error('El catálogo Sapiens offline no es válido.');
       }
       await cache.addAll(sapiensPaths.map((path) => new URL(path, self.registration.scope)));
+
+      const spriteSheetManifestResponse = await fetch('./sprites-3x3/manifest.json');
+      if (!spriteSheetManifestResponse.ok) throw new Error('No se pudo cargar el catálogo de sprites para uso offline.');
+      const spriteSheetPaths = await spriteSheetManifestResponse.json();
+      if (!Array.isArray(spriteSheetPaths) || spriteSheetPaths.some((path) =>
+        typeof path !== 'string' ||
+        !path.startsWith('./sprites-3x3/') ||
+        !/\.(?:svg|png|jpe?g|webp|gif)$/i.test(path)
+      )) {
+        throw new Error('El catálogo de sprites offline no es válido.');
+      }
+      await cache.addAll(spriteSheetPaths.map((path) => new URL(path, self.registration.scope)));
     }),
   );
   self.skipWaiting();
@@ -48,6 +70,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const isStaticAsset = url.pathname.includes('/twemoji/') ||
     url.pathname.includes('/sapiens/') ||
+    url.pathname.includes('/sprites-3x3/') ||
     url.pathname.includes('/assets/') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||

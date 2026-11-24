@@ -2,10 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FieldBoard from './components/FieldBoard.vue';
 import UiIcon from './components/UiIcon.vue';
-import { archetypes, categoryOrder, essentialArchetypeNames } from './data/archetypes';
+import { loadPreloadedSpriteLibrary, restoreLegacySpriteNodes } from './data/sprites';
 import { listSessions, removeSession, saveAllSessions, saveSession } from './storage';
-import type { Category, FieldLine, FieldNode, Session } from './types';
-import { categoryLabels } from './types';
+import type { FieldLine, FieldNode, Session, SpriteConstellationModuleInstance, SpriteLibraryItem } from './types';
+import { spriteDirections } from './types';
 import { cloneState, createSession, formatClockPosition, getOrientationLabel, getTwemojiAssetPath, validateSession } from './utils';
 
 type Snapshot = { nodes: FieldNode[]; lines: FieldLine[] };
@@ -13,9 +13,8 @@ type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{
 
 const session = ref<Session>(createSession('Mi primera sesión'));
 const sessions = ref<Session[]>([]);
-const search = ref('');
-const category = ref<Category | 'all'>('all');
-const catalogScope = ref<'essential' | 'all'>('essential');
+const spriteLibraryContainer = ref<HTMLDivElement | null>(null);
+const spriteLibraryCount = ref(0);
 const selectedNodeId = ref<string | null>(null);
 const selectedLineId = ref<string | null>(null);
 const connectMode = ref(false);
@@ -44,9 +43,9 @@ const reportVisible = ref(false);
 const reportImage = ref('');
 const importInput = ref<HTMLInputElement | null>(null);
 const importBackupInput = ref<HTMLInputElement | null>(null);
-const searchInput = ref<HTMLInputElement | null>(null);
 let saveTimer = 0;
 let toastTimer = 0;
+let spriteLibraryInstance: SpriteConstellationModuleInstance | null = null;
 const history = ref<Snapshot[]>([]);
 const historyIndex = ref(-1);
 
@@ -78,29 +77,14 @@ const relationshipPresets = [
   { label: 'Lealtad invisible', kind: 'dashed' as const, arrow: 'forward' as const, color: '#a855f7' },
 ];
 
-const filteredArchetypes = computed(() => {
-  const query = search.value.trim().toLocaleLowerCase('es');
-  const source = (!query && catalogScope.value === 'essential')
-    ? archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es')))
-    : archetypes;
-
-  return source.filter((item) => {
-    const categoryMatches = category.value === 'all' || item.category === category.value;
-    const queryMatches = !query || `${item.name} ${item.detail} ${categoryLabels[item.category]}`.toLocaleLowerCase('es').includes(query);
-    return categoryMatches && queryMatches;
-  });
-});
-
-const totalScopeArchetypesCount = computed(() => {
-  if (catalogScope.value === 'essential') {
-    return archetypes.filter((item) => [...essentialArchetypeNames].some((name) => name.toLocaleLowerCase('es') === item.name.toLocaleLowerCase('es'))).length;
-  }
-  return archetypes.length;
-});
-
 const selectedNode = computed(() => session.value.nodes.find((node) => node.id === selectedNodeId.value) ?? null);
 const selectedLine = computed(() => session.value.lines.find((line) => line.id === selectedLineId.value) ?? null);
 const totalCount = computed(() => session.value.nodes.length);
+
+watch(
+  () => selectedNode.value?.sprite?.src ?? null,
+  (source) => spriteLibraryInstance?.setSelectedSpriteSource(source),
+);
 
 function showToast(message: string) {
   toastMessage.value = message;
@@ -177,16 +161,16 @@ watch(() => JSON.stringify({
   lines: session.value.lines,
 }), scheduleSave);
 
-function addNode(archetype: typeof archetypes[number]) {
+function addSpriteNode(sprite: SpriteLibraryItem) {
   const index = session.value.nodes.length;
   const angle = index * 2.399963;
   const distance = Math.min(350, 150 + index * 8);
   const node: FieldNode = {
     id: crypto.randomUUID(),
-    name: archetype.name,
-    icon: archetype.icon,
-    color: archetype.color,
-    ...(archetype.figure ? { figure: cloneState(archetype.figure) } : {}),
+    name: sprite.name,
+    icon: '⭐',
+    color: '#6366f1',
+    sprite: { src: sprite.src, direction: 4, spriteSheet: sprite.spriteSheet },
     x: Math.round(500 + Math.cos(angle) * distance),
     y: Math.round(500 + Math.sin(angle) * distance),
     rotation: 0,
@@ -196,6 +180,12 @@ function addNode(archetype: typeof archetypes[number]) {
   selectedNodeId.value = node.id;
   selectedLineId.value = null;
   commitHistory();
+  showCatalog.value = false;
+}
+
+function restoreSessionSpritePreviews(source: Session): Session {
+  const library = spriteLibraryInstance?.library ?? [];
+  return { ...source, nodes: restoreLegacySpriteNodes(source.nodes, library) };
 }
 
 function activateNode(id: string) {
@@ -324,7 +314,7 @@ async function switchSession(event: Event) {
   if (!chosen || chosen.id === session.value.id) return;
   window.clearTimeout(saveTimer);
   await persistSession();
-  session.value = cloneState(chosen);
+  session.value = restoreSessionSpritePreviews(cloneState(chosen));
   resetHistory();
   selectedNodeId.value = null;
   selectedLineId.value = null;
@@ -337,7 +327,7 @@ async function deleteSession() {
     await removeSession(session.value.id);
     sessions.value = sessions.value.filter((item) => item.id !== session.value.id);
     if (sessions.value.length) {
-      session.value = cloneState(sessions.value[0]!);
+      session.value = restoreSessionSpritePreviews(cloneState(sessions.value[0]!));
     } else {
       const next = createSession('Mi primera sesión');
       session.value = next;
@@ -388,7 +378,7 @@ async function importJson(event: Event) {
   const file = input.files?.[0];
   if (!file) return;
   try {
-    const imported = validateSession(JSON.parse(await file.text()));
+    const imported = restoreSessionSpritePreviews(validateSession(JSON.parse(await file.text())));
     imported.id = crypto.randomUUID();
     imported.name = `${imported.name} (importada)`;
     imported.createdAt = new Date().toISOString();
@@ -414,7 +404,7 @@ async function importBackup(event: Event) {
     const rawList: unknown[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed.sessions) ? parsed.sessions : [];
     if (!rawList.length) throw new Error('El archivo no contiene un listado de sesiones válido.');
 
-    const validList = rawList.map(validateSession);
+    const validList = rawList.map((item) => restoreSessionSpritePreviews(validateSession(item)));
     const existingIds = new Set(sessions.value.map((s) => s.id));
     let importedCount = 0;
     for (const item of validList) {
@@ -466,6 +456,7 @@ async function svgDataUrl(): Promise<string> {
   await Promise.all(Array.from(clone.querySelectorAll('image')).map(async (image) => {
     const source = image.getAttribute('href');
     if (!source) throw new Error('Un icono del tablero no tiene una ruta de imagen.');
+    if (source.startsWith('data:')) return;
     const response = await fetch(source);
     if (!response.ok) throw new Error(`No se pudo cargar el icono del tablero (${source}).`);
     image.setAttribute('href', `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await response.text())}`);
@@ -520,9 +511,6 @@ function handleKeydown(event: KeyboardEvent) {
     event.preventDefault();
     window.clearTimeout(saveTimer);
     void persistSession();
-  } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-    event.preventDefault();
-    searchInput.value?.focus();
   } else if (!typing && selectedNodeId.value && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
     const node = session.value.nodes.find((item) => item.id === selectedNodeId.value);
     if (!node) return;
@@ -557,9 +545,33 @@ function onBeforeInstall(event: Event) {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
+  if (spriteLibraryContainer.value) {
+    if (!window.SpriteConstellationModule) {
+      showToast('No se pudo cargar la biblioteca de sprites.');
+    } else {
+      try {
+        const initialLibrary = await loadPreloadedSpriteLibrary();
+        spriteLibraryInstance = new window.SpriteConstellationModule({
+          container: spriteLibraryContainer.value,
+          libraryOnly: true,
+          initialLibrary,
+          allowUploads: false,
+          onSelectSprite: addSpriteNode,
+          onLibraryChange: (library) => { spriteLibraryCount.value = library.filter((item) => item.isLibraryPrimary !== false).length; },
+          onError: (error) => showToast(`No se pudo agregar el sprite: ${error instanceof Error ? error.message : 'error desconocido'}`),
+        });
+        spriteLibraryInstance.setSelectedSpriteSource(selectedNode.value?.sprite?.src ?? null);
+        spriteLibraryCount.value = spriteLibraryInstance.visibleLibrary.length;
+      } catch (error) {
+        showToast(`No se pudo cargar la biblioteca: ${error instanceof Error ? error.message : 'error desconocido'}`);
+      }
+    }
+  }
   try {
     sessions.value = await listSessions();
-    if (sessions.value.length) session.value = cloneState(sessions.value[0]!);
+    if (sessions.value.length) {
+      session.value = restoreSessionSpritePreviews(cloneState(sessions.value[0]!));
+    }
     else {
       sessions.value = [cloneState(session.value)];
       await saveSession(cloneState(session.value));
@@ -616,51 +628,21 @@ onUnmounted(() => {
         </button>
         <button class="icon-button text-size-toggle" :aria-pressed="largeText" :title="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" :aria-label="largeText ? 'Reducir tamaño del texto' : 'Aumentar tamaño del texto'" @click="largeText = !largeText">A+</button>
         <button v-if="installEvent" class="button button-subtle install-button" @click="installApp">Instalar app</button>
-        <button class="icon-button mobile-toggle" aria-label="Abrir catálogo" @click="showCatalog = !showCatalog"><UiIcon name="menu" /></button>
+        <button class="icon-button mobile-toggle" aria-label="Abrir biblioteca" @click="showCatalog = !showCatalog"><UiIcon name="menu" /></button>
       </div>
     </header>
 
     <div class="workspace">
       <aside class="catalog-panel" :class="{ 'mobile-open': showCatalog }">
         <div class="panel-heading">
-          <div><span class="eyebrow">BIBLIOTECA</span><h2>Elementos</h2></div>
-          <span class="count-pill">{{ filteredArchetypes.length }}</span>
-          <button class="icon-button mobile-close" aria-label="Cerrar catálogo" @click="showCatalog = false"><UiIcon name="close" /></button>
+          <div><span class="eyebrow">BIBLIOTECA</span><h2>Personajes</h2></div>
+          <span class="count-pill">{{ spriteLibraryCount }}</span>
+          <button class="icon-button mobile-close" aria-label="Cerrar biblioteca" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
-        <label class="search-field">
-          <span aria-hidden="true"><UiIcon name="search" /></span>
-          <input ref="searchInput" v-model="search" type="search" placeholder="Buscar figura o concepto…" aria-label="Buscar elementos" />
-          <kbd>⌘ K</kbd>
-        </label>
-        <!-- Selector de alcance: Esenciales o Catálogo completo -->
-        <div class="catalog-scope" role="group" aria-label="Alcance del catálogo">
-          <button :class="{ active: catalogScope === 'essential' }" @click="catalogScope = 'essential'">Esenciales</button>
-          <button :class="{ active: catalogScope === 'all' }" @click="catalogScope = 'all'">Todos</button>
-        </div>
-        <div class="category-list" role="group" aria-label="Filtrar por categoría">
-          <button :class="{ active: category === 'all' }" @click="category = 'all'">Todo <span>{{ totalScopeArchetypesCount }}</span></button>
-          <button v-for="item in categoryOrder" :key="item" :class="{ active: category === item }" @click="category = item">
-            {{ categoryLabels[item] }}
-          </button>
-        </div>
-        <div class="catalog-grid">
-          <button
-            v-for="item in filteredArchetypes"
-            :key="item.id"
-            class="archetype-card"
-            :style="{ '--accent': item.color }"
-            :aria-label="`Añadir ${item.name} al tablero`"
-            @click="addNode(item); showCatalog = false"
-          >
-            <span class="archetype-icon"><img :class="{ 'sapiens-asset': item.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(item.icon)" alt="" /></span>
-            <span class="archetype-name">{{ item.name }}</span>
-            <span class="archetype-detail">{{ item.detail }}</span>
-          </button>
-          <div v-if="filteredArchetypes.length === 0" class="empty-search">No encontramos elementos con esa búsqueda.</div>
-        </div>
+        <div ref="spriteLibraryContainer" class="sprite-library-host"></div>
         <div class="privacy-note">
           <span><UiIcon name="shield" :size="20" /></span>
-          <div><p>Privado en este dispositivo.<br />No enviamos datos a ningún servidor.</p><small>Iconos Twemoji · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a></small></div>
+          <div><p>Imágenes precargadas desde las carpetas locales.</p><small>Agrega archivos y reinicia Vite para actualizar la biblioteca.</small></div>
         </div>
       </aside>
 
@@ -717,11 +699,37 @@ onUnmounted(() => {
         <!-- Propiedades del elemento seleccionado -->
         <template v-if="selectedNode">
           <div class="selected-preview" :style="{ '--accent': selectedNode.color }">
-            <span><img :class="{ 'sapiens-asset': selectedNode.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(selectedNode.icon)" alt="" /></span>
+            <span
+              v-if="selectedNode.sprite"
+              class="sprite-preview"
+              :style="{
+                backgroundImage: `url('${selectedNode.sprite.src}')`,
+                backgroundSize: selectedNode.sprite.spriteSheet ? '300% 300%' : '600% 600%',
+                backgroundPosition: selectedNode.sprite.spriteSheet
+                  ? `${selectedNode.sprite.direction % 3 * 50}% ${Math.floor(selectedNode.sprite.direction / 3) * 50}%`
+                  : '35% 12%',
+              }"
+            />
+            <span v-else><img :class="{ 'sapiens-asset': selectedNode.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(selectedNode.icon)" alt="" /></span>
             <div><strong>{{ selectedNode.name }}</strong><small>{{ formatClockPosition(selectedNode.x, selectedNode.y) }}</small></div>
           </div>
           <label class="field-label">Nombre o rol<input v-model="selectedNode.name" maxlength="80" @change="commitHistory" /></label>
-          <div class="field-label direction-control">
+          <div v-if="selectedNode.sprite" class="field-label direction-control sprite-direction-control">
+            <span>Dirección de mirada <output>{{ spriteDirections[selectedNode.sprite.direction]?.label }}</output></span>
+            <div class="sprite-direction-options" role="group" aria-label="Dirección de mirada">
+              <button
+                v-for="direction in spriteDirections"
+                :key="direction.index"
+                type="button"
+                :class="{ active: selectedNode.sprite.direction === direction.index }"
+                :aria-pressed="selectedNode.sprite.direction === direction.index"
+                :aria-label="direction.label"
+                :title="direction.label"
+                @click="selectedNode.sprite.direction = direction.index; commitHistory()"
+              >{{ direction.icon }}</button>
+            </div>
+          </div>
+          <div v-else class="field-label direction-control">
             <span>Orientación en el tablero <output>{{ getOrientationLabel(selectedNode.rotation) }}</output></span>
             <div class="direction-options" role="group" aria-label="Orientación en el tablero">
               <button
@@ -890,9 +898,25 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr v-for="node in session.nodes" :key="node.id">
-              <td><img class="report-icon" :src="getTwemojiAssetPath(node.icon)" alt="" /> {{ node.name }}</td>
+              <td>
+                <svg
+                  v-if="node.sprite"
+                  class="report-icon"
+                  :viewBox="node.sprite.spriteSheet ? `${node.sprite.direction % 3} ${Math.floor(node.sprite.direction / 3)} 1 1` : '0 0 1 1'"
+                  aria-hidden="true"
+                ><image
+                  :href="node.sprite.src"
+                  x="0"
+                  y="0"
+                  :width="node.sprite.spriteSheet ? 3 : 1"
+                  :height="node.sprite.spriteSheet ? 3 : 1"
+                  :preserveAspectRatio="node.sprite.spriteSheet ? 'none' : 'xMidYMid meet'"
+                /></svg>
+                <img v-else class="report-icon" :src="getTwemojiAssetPath(node.icon)" alt="" />
+                {{ node.name }}
+              </td>
               <td>{{ formatClockPosition(node.x, node.y) }}</td>
-              <td>{{ getOrientationLabel(node.rotation) }}</td>
+              <td>{{ node.sprite ? spriteDirections[node.sprite.direction]?.label : getOrientationLabel(node.rotation) }}</td>
               <td>{{ node.scale.toFixed(1) }}×</td>
               <td v-if="session.nodes.some(n => n.phrase)">{{ node.phrase || '—' }}</td>
             </tr>

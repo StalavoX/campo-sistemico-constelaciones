@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const packageDirectory = join(root, 'node_modules', '@twemoji', 'svg');
 const outputDirectory = join(root, 'public', 'twemoji');
-const sapiensOutputDirectory = join(root, 'public', 'sapiens');
 const archetypesPath = join(root, 'src', 'data', 'archetypes.ts');
 const source = await readFile(archetypesPath, 'utf8');
 const availableFiles = new Set((await readdir(packageDirectory)).filter((file) => file.endsWith('.svg')));
@@ -48,15 +47,9 @@ for (const icon of emojiSegments) {
 }
 
 await mkdir(outputDirectory, { recursive: true });
-await mkdir(sapiensOutputDirectory, { recursive: true });
 for (const [assetId, sourceFilename] of assets) {
   await copyFile(join(packageDirectory, sourceFilename), join(outputDirectory, `${assetId}.svg`));
 }
-const sapiensPaths = (await readdir(sapiensOutputDirectory))
-  .filter((file) => /^persona-sapiens-\d+\.svg$/u.test(file))
-  .sort()
-  .map((file) => `./sapiens/${file}`);
-await writeFile(join(sapiensOutputDirectory, 'manifest.json'), `${JSON.stringify(sapiensPaths, null, 2)}\n`);
 
 const sortedIds = [...assets.keys()].sort();
 const manifest = sortedIds.map((assetId) => `./twemoji/${assetId}.svg`);

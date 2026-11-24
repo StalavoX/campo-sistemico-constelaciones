@@ -87,6 +87,46 @@ describe('validación de sesiones', () => {
     expect(invalid.nodes[0]?.figure).toBeUndefined();
   });
 
+  it('conserva figuras y hojas 3×3 válidas y descarta rutas o direcciones inválidas', () => {
+    const sprite = { src: 'data:image/png;base64,AAAA', direction: 8, spriteSheet: true };
+    const valid = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], sprite }],
+    });
+    expect(valid.nodes[0]?.sprite).toEqual(sprite);
+
+    const figure = { ...sprite, direction: 4, spriteSheet: false };
+    const individual = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], sprite: figure }],
+    });
+    expect(individual.nodes[0]?.sprite).toEqual(figure);
+
+    const localSprite = { src: '/sprites-3x3/hombre%201.jpg', direction: 4, spriteSheet: true };
+    const local = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], sprite: localSprite }],
+    });
+    expect(local.nodes[0]?.sprite).toEqual(localSprite);
+
+    const invalid = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], sprite: { src: 'https://example.invalid/sprite.png', direction: 4 } }],
+    });
+    expect(invalid.nodes[0]?.sprite).toBeUndefined();
+
+    const invalidDirection = validateSession({
+      ...validSession,
+      lines: [],
+      nodes: [{ ...validSession.nodes[0], sprite: { ...localSprite, direction: 9 } }],
+    });
+    expect(invalidDirection.nodes[0]?.sprite).toBeUndefined();
+  });
+
   it('conserva iconos de persona locales para mantener sus rasgos visuales', () => {
     const result = validateSession({
       ...validSession,

@@ -57,6 +57,8 @@ select, input:not([type="range"]):not([type="color"]), textarea {
 .workspace { display: grid; flex: 1; min-height: 0; grid-template-columns: 280px minmax(420px, 1fr) 300px; }
 .catalog-panel, .details-panel { display: flex; min-height: 0; flex-direction: column; background: rgba(17, 24, 39, .76); }
 .catalog-panel { border-right: 1px solid var(--border); }
+.sprite-library-host { flex: 1; min-height: 0; overflow: hidden; padding: 0 13px 15px; }
+.sprite-library-host .scm-library-only { height: 100%; color: #e7eaf2; }
 .details-panel { border-left: 1px solid var(--border); padding-bottom: 18px; overflow-y: auto; }
 .panel-heading { display: flex; align-items: center; gap: 12px; padding: 22px 18px 15px; }
 .panel-heading>div { flex: 1; }
@@ -152,6 +154,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .selected-preview { display: flex; align-items: center; gap: 12px; margin: 18px; padding: 13px; border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--accent) 7%, #111827); }
 .selected-preview>span { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 13px; background: color-mix(in srgb, var(--accent) 17%, transparent); font-size: 28px; }
 .selected-preview>span img { width: 40px; height: 40px; object-fit: contain; }
+.selected-preview>span.sprite-preview { background-repeat: no-repeat; background-size: 300% 300%; }
 .selected-preview>div { display: grid; min-width: 0; gap: 4px; }
 .selected-preview strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .selected-preview small { color: var(--text-muted); font-size: 11px; }
@@ -165,6 +168,9 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .direction-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
 .direction-options button { display: grid; min-height: 38px; place-items: center; border: 1px solid var(--border-strong); border-radius: 10px; color: #b7c1d5; background: #111a2b; cursor: pointer; transition: background .16s, color .16s, border-color .16s; }
 .direction-options button:hover, .direction-options button.active { border-color: rgba(165, 180, 252, .48); color: #f0efff; background: rgba(129, 140, 248, .2); }
+.sprite-direction-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.sprite-direction-options button { display: grid; min-height: 34px; place-items: center; border: 1px solid var(--border-strong); border-radius: 9px; color: #b7c1d5; background: #111a2b; font-size: 16px; cursor: pointer; }
+.sprite-direction-options button:hover, .sprite-direction-options button.active { border-color: rgba(165, 180, 252, .48); color: #f0efff; background: rgba(129, 140, 248, .2); }
 .field-label input:not([type="range"]):not([type="color"]), .field-label select, .field-label textarea { width: 100%; padding: 10px; font-size: 13px; }
 .field-label textarea { resize: vertical; line-height: 1.6; }
 .field-label input[type="range"] { width: 100%; accent-color: #9ba6ff; }
@@ -351,6 +357,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .theme-light .details-panel {
   background: rgba(255, 255, 255, .92);
 }
+.theme-light .sprite-library-host .scm-library-only { color: #0f172a; }
 .theme-light .panel-heading h2 {
   color: #0f172a;
 }
@@ -538,6 +545,17 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 }
 .theme-light .direction-options button:hover,
 .theme-light .direction-options button.active {
+  border-color: #6366f1;
+  color: #312e81;
+  background: rgba(99, 102, 241, .15);
+}
+.theme-light .sprite-direction-options button {
+  color: #475569;
+  background: #ffffff;
+  border-color: var(--border-strong);
+}
+.theme-light .sprite-direction-options button:hover,
+.theme-light .sprite-direction-options button.active {
   border-color: #6366f1;
   color: #312e81;
   background: rgba(99, 102, 241, .15);
