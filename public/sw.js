@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campo-sistemico-v7';
+const CACHE_NAME = 'campo-sistemico-v8';
 const CORE_ASSETS = [
   './',
   './manifest.webmanifest',

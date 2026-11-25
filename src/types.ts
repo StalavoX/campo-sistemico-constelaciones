@@ -60,16 +60,6 @@ export interface SpriteLibraryItem {
   isLibraryPrimary?: boolean;
 }
 
-export interface SpriteConstellationModuleOptions {
-  container: HTMLElement;
-  libraryOnly: true;
-  initialLibrary: SpriteLibraryItem[];
-  allowUploads: boolean;
-  onSelectSprite: (sprite: SpriteLibraryItem) => void;
-  onLibraryChange: (library: SpriteLibraryItem[]) => void;
-  onError: (error: unknown) => void;
-}
-
 export const spriteDirections = [
   { index: 0, label: 'Arriba a la izquierda', icon: '↖' },
   { index: 1, label: 'Arriba', icon: '↑' },
@@ -106,18 +96,6 @@ export interface Session {
   updatedAt: string;
   nodes: FieldNode[];
   lines: FieldLine[];
-}
-
-export interface SpriteConstellationModuleInstance {
-  library: SpriteLibraryItem[];
-  visibleLibrary: SpriteLibraryItem[];
-  setSelectedSpriteSource(source: string | null): void;
-}
-
-declare global {
-  interface Window {
-    SpriteConstellationModule?: new (options: SpriteConstellationModuleOptions) => SpriteConstellationModuleInstance;
-  }
 }
 
 export const categoryLabels: Record<Category, string> = {

@@ -154,7 +154,7 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .selected-preview { display: flex; align-items: center; gap: 12px; margin: 18px; padding: 13px; border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--accent) 7%, #111827); }
 .selected-preview>span { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 13px; background: color-mix(in srgb, var(--accent) 17%, transparent); font-size: 28px; }
 .selected-preview>span img { width: 40px; height: 40px; object-fit: contain; }
-.selected-preview>span.sprite-preview { background-repeat: no-repeat; background-size: 300% 300%; }
+.selected-preview>span.sprite-preview { background-color: transparent !important; background-repeat: no-repeat; background-size: 300% 300%; }
 .selected-preview>div { display: grid; min-width: 0; gap: 4px; }
 .selected-preview strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .selected-preview small { color: var(--text-muted); font-size: 11px; }
@@ -516,6 +516,9 @@ kbd { padding: 2px 5px; border: 1px solid var(--border); border-radius: 5px; col
 .theme-light .selected-preview {
   background: color-mix(in srgb, var(--accent) 7%, #ffffff);
   border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.theme-light .selected-preview>span.sprite-preview {
+  background-color: transparent !important;
 }
 .theme-light .selected-preview strong {
   color: #0f172a;

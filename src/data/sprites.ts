@@ -100,8 +100,49 @@ export async function loadPreloadedSpriteLibrary(): Promise<SpriteLibraryItem[]>
     fetchManifest('sapiens'),
     fetchManifest('sprites-3x3'),
   ]);
-  return linkSpriteCounterparts([
+  const preloaded = linkSpriteCounterparts([
     ...parseSpriteManifest(figuresManifest, 'sapiens'),
     ...parseSpriteManifest(spriteSheetsManifest, 'sprites-3x3'),
   ]);
+  const custom = loadCustomSprites();
+  return [...custom, ...preloaded];
 }
+
+const CUSTOM_SPRITES_KEY = 'campo-sistemico-custom-sprites';
+
+export function loadCustomSprites(): SpriteLibraryItem[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(CUSTOM_SPRITES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) => item && typeof item.id === 'string' && typeof item.src === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomSprite(item: SpriteLibraryItem): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const current = loadCustomSprites().filter((i) => i.id !== item.id);
+    current.unshift(item);
+    localStorage.setItem(CUSTOM_SPRITES_KEY, JSON.stringify(current));
+  } catch {
+    // noop
+  }
+}
+
+export function deleteCustomSprite(id: string): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const current = loadCustomSprites().filter((i) => i.id !== id);
+    localStorage.setItem(CUSTOM_SPRITES_KEY, JSON.stringify(current));
+  } catch {
+    // noop
+  }
+}
+

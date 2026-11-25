@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { FieldLine, FieldNode } from '../types';
 import { getTwemojiAssetPath } from '../utils';
 
@@ -61,6 +61,42 @@ const dragOffset = ref({ x: 0, y: 0 });
 const dragStart = ref({ x: 0, y: 0 });
 const hasDragged = ref(false);
 
+// Zoom y Panning interactivos
+const zoom = ref(1);
+const pan = ref({ x: 0, y: 0 });
+const isPanning = ref(false);
+const hasPanned = ref(false);
+const panStart = ref({ x: 0, y: 0 });
+const panOrigin = ref({ x: 0, y: 0 });
+
+const viewBoxSize = computed(() => 1000 / zoom.value);
+const viewBoxX = computed(() => 500 - viewBoxSize.value / 2 - pan.value.x);
+const viewBoxY = computed(() => 500 - viewBoxSize.value / 2 - pan.value.y);
+const currentViewBox = computed(() => `${viewBoxX.value} ${viewBoxY.value} ${viewBoxSize.value} ${viewBoxSize.value}`);
+
+function setZoom(val: number) {
+  zoom.value = Math.min(3.0, Math.max(0.5, Math.round(val * 100) / 100));
+}
+
+function zoomIn() {
+  setZoom(zoom.value * 1.2);
+}
+
+function zoomOut() {
+  setZoom(zoom.value / 1.2);
+}
+
+function resetZoom() {
+  zoom.value = 1;
+  pan.value = { x: 0, y: 0 };
+}
+
+function onWheel(event: WheelEvent) {
+  event.preventDefault();
+  const factor = event.deltaY < 0 ? 1.12 : 0.89;
+  setZoom(zoom.value * factor);
+}
+
 function clampToBoard(rawX: number, rawY: number): { x: number; y: number } {
   let x = Math.min(960, Math.max(40, rawX));
   let y = Math.min(960, Math.max(40, rawY));
@@ -74,10 +110,21 @@ function clampToBoard(rawX: number, rawY: number): { x: number; y: number } {
   return { x, y };
 }
 
+function getSvgPoint(clientX: number, clientY: number): { x: number; y: number } {
+  if (!svgElement.value) return { x: 500, y: 500 };
+  const ctm = svgElement.value.getScreenCTM();
+  if (!ctm) return { x: 500, y: 500 };
+  const pt = svgElement.value.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const transformed = pt.matrixTransform(ctm.inverse());
+  return { x: transformed.x, y: transformed.y };
+}
+
 function getPoint(event: PointerEvent) {
-  const rect = svgElement.value!.getBoundingClientRect();
-  let x = Math.round(((event.clientX - rect.left) / rect.width) * 1000);
-  let y = Math.round(((event.clientY - rect.top) / rect.height) * 1000);
+  const pt = getSvgPoint(event.clientX, event.clientY);
+  let x = Math.round(pt.x);
+  let y = Math.round(pt.y);
   if (props.snapToGrid) {
     x = Math.round(x / 20) * 20;
     y = Math.round(y / 20) * 20;
@@ -114,6 +161,50 @@ function moveNode(event: PointerEvent) {
   const rawTargetY = point.y - dragOffset.value.y;
   const clamped = clampToBoard(rawTargetX, rawTargetY);
   emit('move', draggingId.value, clamped.x, clamped.y);
+}
+
+function onBoardPointerDown(event: PointerEvent) {
+  if ((event.target as Element).closest('[data-node-id], [data-line-id]')) return;
+  if (props.connectMode) {
+    emit('activate', '');
+    return;
+  }
+  isPanning.value = true;
+  hasPanned.value = false;
+  panStart.value = { x: event.clientX, y: event.clientY };
+  panOrigin.value = { x: pan.value.x, y: pan.value.y };
+  try {
+    svgElement.value?.setPointerCapture(event.pointerId);
+  } catch {
+    // noop
+  }
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (draggingId.value) {
+    moveNode(event);
+  } else if (isPanning.value) {
+    const screenScale = svgElement.value?.clientWidth ? svgElement.value.clientWidth / viewBoxSize.value : 1;
+    const dx = (event.clientX - panStart.value.x) / screenScale;
+    const dy = (event.clientY - panStart.value.y) / screenScale;
+    if (Math.hypot(dx, dy) > 4) {
+      hasPanned.value = true;
+    }
+    pan.value = {
+      x: Math.round(panOrigin.value.x + dx),
+      y: Math.round(panOrigin.value.y + dy),
+    };
+  }
+}
+
+function onPointerUp(event: PointerEvent) {
+  if (isPanning.value) {
+    isPanning.value = false;
+    if (!hasPanned.value) {
+      emit('activate', '');
+    }
+  }
+  finishDrag(event);
 }
 
 function finishDrag(event?: PointerEvent) {
@@ -203,11 +294,6 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
   const clean = name.length > 21 ? `${name.slice(0, 20)}…` : name;
   return { line1: clean };
 }
-
-function backgroundClick(event: PointerEvent) {
-  if ((event.target as Element).closest('[data-node-id], [data-line-id]')) return;
-  if (!props.connectMode) emit('activate', '');
-}
 </script>
 
 <template>
@@ -215,13 +301,14 @@ function backgroundClick(event: PointerEvent) {
     <svg
       ref="svgElement"
       class="field-board"
-      viewBox="0 0 1000 1000"
+      :viewBox="currentViewBox"
       role="application"
       aria-label="Reloj sistémico interactivo. Arrastra los elementos para cambiar su posición."
-      @pointermove="moveNode"
-      @pointerup="finishDrag"
-      @pointercancel="finishDrag"
-      @pointerdown="backgroundClick"
+      @wheel="onWheel"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+      @pointerdown="onBoardPointerDown"
     >
       <defs>
         <radialGradient id="board-glow" cx="50%" cy="45%" r="65%">
@@ -267,79 +354,89 @@ function backgroundClick(event: PointerEvent) {
       <circle cx="500" cy="500" r="475" fill="url(#board-glow)" :stroke="theme === 'light' ? '#6366f1' : '#a5b4fc'" :stroke-opacity="theme === 'light' ? '.45' : '.32'" stroke-width="2" />
       <circle cx="500" cy="500" r="444" fill="none" stroke="#94a3b8" :stroke-opacity="theme === 'light' ? '.35' : '.13'" />
 
-      <!-- Marcas de minutos -->
-      <g aria-hidden="true">
-        <line
-          v-for="(tick, index) in TICKS"
-          :key="index"
-          :x1="tick.x1" :y1="tick.y1" :x2="tick.x2" :y2="tick.y2"
-          :stroke="tick.major ? (theme === 'light' ? '#4f46e5' : '#c7d2fe') : '#94a3b8'"
-          :stroke-opacity="tick.major ? '.85' : '.35'"
-          :stroke-width="tick.major ? 2 : 1"
-        />
-      </g>
+      <!-- Marcas de minutos/grados del reloj -->
+      <line
+        v-for="(tick, index) in TICKS"
+        :key="`tick-${index}`"
+        :x1="tick.x1"
+        :y1="tick.y1"
+        :x2="tick.x2"
+        :y2="tick.y2"
+        :stroke="tick.major ? (theme === 'light' ? '#4f46e5' : '#c7d2fe') : (theme === 'light' ? '#94a3b8' : '#64748b')"
+        :stroke-opacity="tick.major ? (theme === 'light' ? '.7' : '.55') : (theme === 'light' ? '.4' : '.25')"
+        :stroke-width="tick.major ? 2.5 : 1.2"
+      />
 
-      <!-- Zonas concéntricas: Exterior, Medio y Núcleo -->
+      <!-- Zonas sistémicas concéntricas (núcleo, medio, exterior) -->
       <circle cx="500" cy="500" r="340" fill="none" :stroke="theme === 'light' ? '#4f46e5' : '#818cf8'" :stroke-opacity="theme === 'light' ? '.45' : '.28'" stroke-width="2" stroke-dasharray="5 9" />
       <circle cx="500" cy="500" r="184" fill="none" :stroke="theme === 'light' ? '#0284c7' : '#7dd3fc'" :stroke-opacity="theme === 'light' ? '.55' : '.28'" stroke-width="2" />
 
-      <!-- Posiciones horarias (1 a 12) -->
-      <g v-for="position in HOURS" :key="position.hour" class="clock-hour-label" aria-hidden="true">
-        <circle :cx="position.x" :cy="position.y" r="20" />
-        <text :x="position.x" :y="position.y + 5">{{ position.hour }}</text>
+      <!-- Etiquetas horarias del reloj (1 a 12) -->
+      <g v-for="entry in HOURS" :key="`hour-${entry.hour}`" class="clock-hour-label" aria-hidden="true">
+        <circle :cx="entry.x" :cy="entry.y" r="22" />
+        <text :x="entry.x" :y="entry.y + 6">{{ entry.hour }}</text>
       </g>
 
-      <!-- Vínculos y relaciones entre elementos -->
-      <g v-for="line in lines" :key="line.id">
+      <!-- Vínculos / Relaciones entre figuras -->
+      <g v-for="line in lines" :key="line.id" class="field-relation" :class="{ 'relation-selected': selectedLineId === line.id }">
         <template v-if="getLineEndpoints(line)">
-          <!-- Área de impacto invisible para facilitar el clic o toque táctil -->
+          <!-- Zona de interacción táctil más amplia para facilitar clic/selección -->
           <line
-            :x1="getLineEndpoints(line)!.fromNode.x"
-            :y1="getLineEndpoints(line)!.fromNode.y"
-            :x2="getLineEndpoints(line)!.toNode.x"
-            :y2="getLineEndpoints(line)!.toNode.y"
+            :x1="getLineEndpoints(line)!.x1"
+            :y1="getLineEndpoints(line)!.y1"
+            :x2="getLineEndpoints(line)!.x2"
+            :y2="getLineEndpoints(line)!.y2"
+            class="relation-hitbox"
             stroke="transparent"
             stroke-width="26"
-            class="relation-hitbox"
-            @pointerdown.stop
+            stroke-linecap="round"
             @click.stop="emit('selectLine', line.id)"
           />
-          <!-- Línea visible con estilo, color y flechas -->
+          <!-- Línea visible de la relación -->
           <line
             :x1="getLineEndpoints(line)!.x1"
             :y1="getLineEndpoints(line)!.y1"
             :x2="getLineEndpoints(line)!.x2"
             :y2="getLineEndpoints(line)!.y2"
             :stroke="line.color"
-            :stroke-width="selectedLineId === line.id ? 6 : 3"
-            :stroke-dasharray="line.kind === 'dashed' ? '12 9' : line.kind === 'dotted' ? '2 9' : undefined"
+            :stroke-width="selectedLineId === line.id ? 4.5 : 3"
+            :stroke-dasharray="line.kind === 'dashed' ? '8 6' : line.kind === 'dotted' ? '3 5' : undefined"
             :marker-end="getLineEndpoints(line)!.hasForwardArrow ? 'url(#relation-arrow-end)' : undefined"
             :marker-start="getLineEndpoints(line)!.hasBackwardArrow ? 'url(#relation-arrow-start)' : undefined"
-            :class="{ 'relation-line': true, 'relation-selected': selectedLineId === line.id }"
-            :data-line-id="line.id"
-            tabindex="0"
-            role="button"
-            :aria-label="`${line.label}: ${getLineEndpoints(line)!.fromNode.name} con ${getLineEndpoints(line)!.toNode.name}`"
-            @pointerdown.stop
+            stroke-linecap="round"
             @click.stop="emit('selectLine', line.id)"
-            @keydown.enter.stop="emit('selectLine', line.id)"
           />
-
-          <!-- Botón flotante para eliminar rápidamente el vínculo seleccionado -->
+          <!-- Etiqueta o nombre del vínculo con su frase -->
+          <g
+            v-if="getLineMidpoint(line) && (line.label || line.phrase)"
+            class="relation-badge"
+            :transform="`translate(${getLineMidpoint(line)!.x} ${getLineMidpoint(line)!.y})`"
+            @click.stop="emit('selectLine', line.id)"
+          >
+            <rect
+              :x="-Math.max(50, Math.min(100, Math.max(line.label.length, (line.phrase || '').length) * 4.6))"
+              :y="line.phrase ? -20 : -13"
+              :width="Math.max(100, Math.min(200, Math.max(line.label.length, (line.phrase || '').length) * 9.2))"
+              :height="line.phrase ? 40 : 26"
+              rx="8"
+              :fill="theme === 'light' ? '#ffffff' : '#0f172a'"
+              :stroke="line.color"
+              :stroke-width="selectedLineId === line.id ? 2 : 1"
+            />
+            <text :y="line.phrase ? -4 : 4" :fill="theme === 'light' ? '#0f172a' : '#f8fafc'">{{ line.label }}</text>
+            <text v-if="line.phrase" y="12" class="relation-phrase-text" :fill="theme === 'light' ? '#6366f1' : '#a5b4fc'">{{ line.phrase }}</text>
+          </g>
+          <!-- Botón de eliminación rápida cuando el vínculo está seleccionado -->
           <g
             v-if="selectedLineId === line.id && getLineMidpoint(line)"
-            class="line-delete-badge"
-            :transform="`translate(${getLineMidpoint(line)!.x} ${getLineMidpoint(line)!.y})`"
-            tabindex="0"
+            class="relation-delete-btn"
+            :transform="`translate(${getLineMidpoint(line)!.x + 44} ${getLineMidpoint(line)!.y - 20})`"
             role="button"
             aria-label="Eliminar vínculo"
-            @pointerdown.stop
             @click.stop="emit('deleteLine', line.id)"
-            @keydown.enter.stop="emit('deleteLine', line.id)"
-            @keydown.space.stop="emit('deleteLine', line.id)"
           >
             <circle cx="0" cy="0" r="16" fill="#ef4444" stroke="#ffffff" stroke-width="2.5" />
-            <path d="M -5 -5 L 5 5 M 5 -5 L -5 5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+            <text x="0" y="5" fill="#ffffff" text-anchor="middle" font-size="14" font-weight="bold">×</text>
           </g>
         </template>
       </g>
@@ -394,7 +491,19 @@ function backgroundClick(event: PointerEvent) {
           class="connect-pulse"
         />
 
-        <!-- Base circular del elemento -->
+        <!-- Halo de selección dorado para figuras con sprite (con fill="none" para transparencia total) -->
+        <circle
+          v-if="node.sprite && selectedNodeId === node.id"
+          :r="46 * node.scale"
+          fill="none"
+          stroke="#fbbf24"
+          :stroke-width="3.5 * node.scale"
+          stroke-dasharray="6 3"
+          filter="url(#node-glow)"
+          pointer-events="none"
+        />
+
+        <!-- Base circular del elemento tradicional (iconos estándar) -->
         <circle
           v-if="!node.figure && !node.sprite"
           :r="(node.figure || node.sprite ? 42 : 36) * node.scale"
@@ -459,6 +568,31 @@ function backgroundClick(event: PointerEvent) {
       <circle class="board-center" cx="500" cy="500" r="9" />
     </svg>
 
+    <!-- Controles flotantes de Zoom y Navegación del Tablero -->
+    <div class="board-zoom-controls" role="group" aria-label="Controles de zoom">
+      <button type="button" class="zoom-btn" title="Acercar (+)" aria-label="Acercar tablero" @click="zoomIn">+</button>
+      <button
+        type="button"
+        class="zoom-btn zoom-level"
+        :title="zoom !== 1 || pan.x !== 0 || pan.y !== 0 ? 'Restablecer vista (100%)' : 'Zoom actual'"
+        aria-label="Restablecer zoom al 100%"
+        @click="resetZoom"
+      >
+        {{ Math.round(zoom * 100) }}%
+      </button>
+      <button type="button" class="zoom-btn" title="Alejar (-)" aria-label="Alejar tablero" @click="zoomOut">−</button>
+      <button
+        v-if="zoom !== 1 || pan.x !== 0 || pan.y !== 0"
+        type="button"
+        class="zoom-btn zoom-reset"
+        title="Centrar y restablecer vista"
+        aria-label="Centrar y restablecer vista"
+        @click="resetZoom"
+      >
+        ⊙
+      </button>
+    </div>
+
     <!-- Estado vacío inicial -->
     <div v-if="nodes.length === 0" class="board-empty" aria-hidden="true">
       <span class="empty-star">✧</span>
@@ -467,3 +601,73 @@ function backgroundClick(event: PointerEvent) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.board-zoom-controls {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+}
+
+.zoom-btn {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.zoom-btn.zoom-level {
+  font-size: 11px;
+  min-width: 38px;
+  color: #a5b4fc;
+}
+
+.zoom-btn.zoom-reset {
+  font-size: 14px;
+  color: #fbbf24;
+}
+
+:global(.theme-light) .board-zoom-controls {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+:global(.theme-light) .zoom-btn {
+  color: #334155;
+}
+
+:global(.theme-light) .zoom-btn:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+:global(.theme-light) .zoom-btn.zoom-level {
+  color: #4f46e5;
+}
+</style>

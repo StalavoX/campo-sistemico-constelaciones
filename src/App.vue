@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FieldBoard from './components/FieldBoard.vue';
+import SpriteCatalog from './components/SpriteCatalog.vue';
 import UiIcon from './components/UiIcon.vue';
-import { loadPreloadedSpriteLibrary, restoreLegacySpriteNodes } from './data/sprites';
+import { loadPreloadedSpriteLibrary, restoreLegacySpriteNodes, saveCustomSprite } from './data/sprites';
 import { listSessions, removeSession, saveAllSessions, saveSession } from './storage';
-import type { FieldLine, FieldNode, Session, SpriteConstellationModuleInstance, SpriteLibraryItem } from './types';
+import type { FieldLine, FieldNode, Session, SpriteLibraryItem } from './types';
 import { spriteDirections } from './types';
 import { cloneState, createSession, formatClockPosition, getOrientationLabel, getTwemojiAssetPath, validateSession } from './utils';
 
@@ -13,8 +14,8 @@ type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{
 
 const session = ref<Session>(createSession('Mi primera sesión'));
 const sessions = ref<Session[]>([]);
-const spriteLibraryContainer = ref<HTMLDivElement | null>(null);
-const spriteLibraryCount = ref(0);
+const spriteLibrary = ref<SpriteLibraryItem[]>([]);
+const spriteLibraryCount = computed(() => spriteLibrary.value.filter((item) => item.isLibraryPrimary !== false).length);
 const selectedNodeId = ref<string | null>(null);
 const selectedLineId = ref<string | null>(null);
 const connectMode = ref(false);
@@ -45,7 +46,6 @@ const importInput = ref<HTMLInputElement | null>(null);
 const importBackupInput = ref<HTMLInputElement | null>(null);
 let saveTimer = 0;
 let toastTimer = 0;
-let spriteLibraryInstance: SpriteConstellationModuleInstance | null = null;
 const history = ref<Snapshot[]>([]);
 const historyIndex = ref(-1);
 
@@ -80,11 +80,6 @@ const relationshipPresets = [
 const selectedNode = computed(() => session.value.nodes.find((node) => node.id === selectedNodeId.value) ?? null);
 const selectedLine = computed(() => session.value.lines.find((line) => line.id === selectedLineId.value) ?? null);
 const totalCount = computed(() => session.value.nodes.length);
-
-watch(
-  () => selectedNode.value?.sprite?.src ?? null,
-  (source) => spriteLibraryInstance?.setSelectedSpriteSource(source),
-);
 
 function showToast(message: string) {
   toastMessage.value = message;
@@ -183,8 +178,15 @@ function addSpriteNode(sprite: SpriteLibraryItem) {
   showCatalog.value = false;
 }
 
+function onCustomSpriteUploaded(item: SpriteLibraryItem) {
+  saveCustomSprite(item);
+  spriteLibrary.value.unshift(item);
+  addSpriteNode(item);
+  showToast(`Personaje «${item.name}» agregado a la biblioteca.`);
+}
+
 function restoreSessionSpritePreviews(source: Session): Session {
-  const library = spriteLibraryInstance?.library ?? [];
+  const library = spriteLibrary.value;
   return { ...source, nodes: restoreLegacySpriteNodes(source.nodes, library) };
 }
 
@@ -432,6 +434,7 @@ async function svgDataUrl(): Promise<string> {
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('width', '1000');
   clone.setAttribute('height', '1000');
+  clone.setAttribute('viewBox', '0 0 1000 1000');
   clone.querySelectorAll('[tabindex]').forEach((element) => element.removeAttribute('tabindex'));
 
   // Limpiar estilos e indicadores de selección o conexión activa en la exportación
@@ -545,27 +548,10 @@ function onBeforeInstall(event: Event) {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
-  if (spriteLibraryContainer.value) {
-    if (!window.SpriteConstellationModule) {
-      showToast('No se pudo cargar la biblioteca de sprites.');
-    } else {
-      try {
-        const initialLibrary = await loadPreloadedSpriteLibrary();
-        spriteLibraryInstance = new window.SpriteConstellationModule({
-          container: spriteLibraryContainer.value,
-          libraryOnly: true,
-          initialLibrary,
-          allowUploads: false,
-          onSelectSprite: addSpriteNode,
-          onLibraryChange: (library) => { spriteLibraryCount.value = library.filter((item) => item.isLibraryPrimary !== false).length; },
-          onError: (error) => showToast(`No se pudo agregar el sprite: ${error instanceof Error ? error.message : 'error desconocido'}`),
-        });
-        spriteLibraryInstance.setSelectedSpriteSource(selectedNode.value?.sprite?.src ?? null);
-        spriteLibraryCount.value = spriteLibraryInstance.visibleLibrary.length;
-      } catch (error) {
-        showToast(`No se pudo cargar la biblioteca: ${error instanceof Error ? error.message : 'error desconocido'}`);
-      }
-    }
+  try {
+    spriteLibrary.value = await loadPreloadedSpriteLibrary();
+  } catch (error) {
+    showToast(`No se pudo cargar la biblioteca: ${error instanceof Error ? error.message : 'error desconocido'}`);
   }
   try {
     sessions.value = await listSessions();
@@ -639,10 +625,16 @@ onUnmounted(() => {
           <span class="count-pill">{{ spriteLibraryCount }}</span>
           <button class="icon-button mobile-close" aria-label="Cerrar biblioteca" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
-        <div ref="spriteLibraryContainer" class="sprite-library-host"></div>
+        <SpriteCatalog
+          :items="spriteLibrary"
+          :selected-src="selectedNode?.sprite?.src ?? null"
+          :theme="theme"
+          @select="addSpriteNode"
+          @upload="onCustomSpriteUploaded"
+        />
         <div class="privacy-note">
           <span><UiIcon name="shield" :size="20" /></span>
-          <div><p>Imágenes precargadas desde las carpetas locales.</p><small>Agrega archivos y reinicia Vite para actualizar la biblioteca.</small></div>
+          <div><p>Imágenes locales y personalizadas sin envío a servidores.</p><small>Sube archivos PNG o agrega imágenes en public/ para ampliar la biblioteca.</small></div>
         </div>
       </aside>
 
