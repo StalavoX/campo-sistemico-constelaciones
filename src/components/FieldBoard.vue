@@ -219,34 +219,6 @@ function getLineMidpoint(line: FieldLine) {
     y: Math.round((fromNode.y + toNode.y) / 2),
   };
 }
-
-function formatNodeLabel(name: string): { line1: string; line2?: string } {
-  const parenMatch = name.match(/^(.*?)\s*\((.*?)\)$/);
-  if (parenMatch) {
-    const main = parenMatch[1]!.trim();
-    const sub = parenMatch[2]!.trim();
-    const shortSub = sub.length > 20 ? `${sub.slice(0, 19)}…` : sub;
-    return { line1: main, line2: shortSub };
-  }
-  if (name.length > 18 && name.includes(' ')) {
-    const words = name.split(' ');
-    let line1 = '';
-    let line2 = '';
-    for (const word of words) {
-      if ((line1 + ' ' + word).trim().length <= 16 && !line2) {
-        line1 = (line1 + ' ' + word).trim();
-      } else {
-        line2 = (line2 + ' ' + word).trim();
-      }
-    }
-    if (line2) {
-      const shortLine2 = line2.length > 19 ? `${line2.slice(0, 18)}…` : line2;
-      return { line1, line2: shortLine2 };
-    }
-  }
-  const clean = name.length > 21 ? `${name.slice(0, 20)}…` : name;
-  return { line1: clean };
-}
 </script>
 
 <template>
@@ -510,19 +482,6 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
           preserveAspectRatio="xMidYMid meet"
           aria-hidden="true"
         />
-
-        <!-- Etiqueta con el nombre o rol (solo se muestra si tiene un nombre asignado) -->
-        <g v-if="node.name && node.name.trim()" class="node-label">
-          <template v-if="formatNodeLabel(node.name).line2">
-            <rect x="-96" :y="node.figure || node.sprite ? 50 : 43" width="192" height="46" rx="10" />
-            <text :y="node.figure || node.sprite ? 68 : 61" font-weight="600">{{ formatNodeLabel(node.name).line1 }}</text>
-            <text :y="node.figure || node.sprite ? 84 : 77" class="node-label-sub">{{ formatNodeLabel(node.name).line2 }}</text>
-          </template>
-          <template v-else>
-            <rect x="-96" :y="node.figure || node.sprite ? 52 : 45" width="192" height="38" rx="10" />
-            <text :y="node.figure || node.sprite ? 77 : 70">{{ formatNodeLabel(node.name).line1 }}</text>
-          </template>
-        </g>
       </g>
 
       <!-- Punto central del sistema -->
