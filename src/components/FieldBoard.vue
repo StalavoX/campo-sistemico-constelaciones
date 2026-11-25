@@ -61,21 +61,14 @@ const dragOffset = ref({ x: 0, y: 0 });
 const dragStart = ref({ x: 0, y: 0 });
 const hasDragged = ref(false);
 
-// Zoom y Panning interactivos
+// Zoom interactivo centrado en el medio (el reloj se mantiene fijo en el centro)
 const zoom = ref(1);
-const pan = ref({ x: 0, y: 0 });
-const isPanning = ref(false);
-const hasPanned = ref(false);
-const panStart = ref({ x: 0, y: 0 });
-const panOrigin = ref({ x: 0, y: 0 });
-
 const viewBoxSize = computed(() => 1000 / zoom.value);
-const viewBoxX = computed(() => 500 - viewBoxSize.value / 2 - pan.value.x);
-const viewBoxY = computed(() => 500 - viewBoxSize.value / 2 - pan.value.y);
-const currentViewBox = computed(() => `${viewBoxX.value} ${viewBoxY.value} ${viewBoxSize.value} ${viewBoxSize.value}`);
+const viewBoxOffset = computed(() => (1000 - viewBoxSize.value) / 2);
+const currentViewBox = computed(() => `${viewBoxOffset.value} ${viewBoxOffset.value} ${viewBoxSize.value} ${viewBoxSize.value}`);
 
 function setZoom(val: number) {
-  zoom.value = Math.min(3.0, Math.max(0.5, Math.round(val * 100) / 100));
+  zoom.value = Math.min(3.0, Math.max(0.6, Math.round(val * 100) / 100));
 }
 
 function zoomIn() {
@@ -88,7 +81,6 @@ function zoomOut() {
 
 function resetZoom() {
   zoom.value = 1;
-  pan.value = { x: 0, y: 0 };
 }
 
 function onWheel(event: WheelEvent) {
@@ -163,48 +155,9 @@ function moveNode(event: PointerEvent) {
   emit('move', draggingId.value, clamped.x, clamped.y);
 }
 
-function onBoardPointerDown(event: PointerEvent) {
+function backgroundClick(event: PointerEvent) {
   if ((event.target as Element).closest('[data-node-id], [data-line-id]')) return;
-  if (props.connectMode) {
-    emit('activate', '');
-    return;
-  }
-  isPanning.value = true;
-  hasPanned.value = false;
-  panStart.value = { x: event.clientX, y: event.clientY };
-  panOrigin.value = { x: pan.value.x, y: pan.value.y };
-  try {
-    svgElement.value?.setPointerCapture(event.pointerId);
-  } catch {
-    // noop
-  }
-}
-
-function onPointerMove(event: PointerEvent) {
-  if (draggingId.value) {
-    moveNode(event);
-  } else if (isPanning.value) {
-    const screenScale = svgElement.value?.clientWidth ? svgElement.value.clientWidth / viewBoxSize.value : 1;
-    const dx = (event.clientX - panStart.value.x) / screenScale;
-    const dy = (event.clientY - panStart.value.y) / screenScale;
-    if (Math.hypot(dx, dy) > 4) {
-      hasPanned.value = true;
-    }
-    pan.value = {
-      x: Math.round(panOrigin.value.x + dx),
-      y: Math.round(panOrigin.value.y + dy),
-    };
-  }
-}
-
-function onPointerUp(event: PointerEvent) {
-  if (isPanning.value) {
-    isPanning.value = false;
-    if (!hasPanned.value) {
-      emit('activate', '');
-    }
-  }
-  finishDrag(event);
+  if (!props.connectMode) emit('activate', '');
 }
 
 function finishDrag(event?: PointerEvent) {
@@ -305,10 +258,10 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
       role="application"
       aria-label="Reloj sistémico interactivo. Arrastra los elementos para cambiar su posición."
       @wheel="onWheel"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @pointercancel="onPointerUp"
-      @pointerdown="onBoardPointerDown"
+      @pointermove="moveNode"
+      @pointerup="finishDrag"
+      @pointercancel="finishDrag"
+      @pointerdown="backgroundClick"
     >
       <defs>
         <radialGradient id="board-glow" cx="50%" cy="45%" r="65%">
@@ -349,7 +302,7 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
         </marker>
       </defs>
 
-      <!-- Fondo y anillos del reloj sistémico -->
+      <!-- Fondo y anillos del reloj sistémico fijo en el centro -->
       <circle cx="500" cy="500" r="486" :fill="theme === 'light' ? '#cbd5e1' : '#0b1220'" :stroke="theme === 'light' ? '#94a3b8' : '#64748b'" stroke-opacity=".45" stroke-width="2" />
       <circle cx="500" cy="500" r="475" fill="url(#board-glow)" :stroke="theme === 'light' ? '#6366f1' : '#a5b4fc'" :stroke-opacity="theme === 'light' ? '.45' : '.32'" stroke-width="2" />
       <circle cx="500" cy="500" r="444" fill="none" stroke="#94a3b8" :stroke-opacity="theme === 'light' ? '.35' : '.13'" />
@@ -375,6 +328,14 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
       <g v-for="entry in HOURS" :key="`hour-${entry.hour}`" class="clock-hour-label" aria-hidden="true">
         <circle :cx="entry.x" :cy="entry.y" r="22" />
         <text :x="entry.x" :y="entry.y + 6">{{ entry.hour }}</text>
+      </g>
+
+      <!-- Textos de orientación espacial en el reloj: Arriba, Abajo, Izquierda, Derecha -->
+      <g class="clock-cardinals" aria-hidden="true">
+        <text x="500" y="138" class="clock-cardinal-label" text-anchor="middle">Arriba</text>
+        <text x="500" y="876" class="clock-cardinal-label" text-anchor="middle">Abajo</text>
+        <text x="145" y="505" class="clock-cardinal-label" text-anchor="middle">Izquierda</text>
+        <text x="855" y="505" class="clock-cardinal-label" text-anchor="middle">Derecha</text>
       </g>
 
       <!-- Vínculos / Relaciones entre figuras -->
@@ -455,7 +416,7 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
         :data-node-id="node.id"
         tabindex="0"
         role="button"
-        :aria-label="`${node.name}, posicionado en el tablero`"
+        :aria-label="`${node.name || 'Figura'}, posicionada en el tablero`"
         @pointerdown="startNode($event, node)"
         @keydown.enter.prevent="emit('activate', node.id)"
         @keydown.space.prevent="emit('activate', node.id)"
@@ -550,8 +511,8 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
           aria-hidden="true"
         />
 
-        <!-- Etiqueta con el nombre o rol -->
-        <g class="node-label">
+        <!-- Etiqueta con el nombre o rol (solo se muestra si tiene un nombre asignado) -->
+        <g v-if="node.name && node.name.trim()" class="node-label">
           <template v-if="formatNodeLabel(node.name).line2">
             <rect x="-96" :y="node.figure || node.sprite ? 50 : 43" width="192" height="46" rx="10" />
             <text :y="node.figure || node.sprite ? 68 : 61" font-weight="600">{{ formatNodeLabel(node.name).line1 }}</text>
@@ -568,13 +529,13 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
       <circle class="board-center" cx="500" cy="500" r="9" />
     </svg>
 
-    <!-- Controles flotantes de Zoom y Navegación del Tablero -->
+    <!-- Controles flotantes de Zoom centrados -->
     <div class="board-zoom-controls" role="group" aria-label="Controles de zoom">
       <button type="button" class="zoom-btn" title="Acercar (+)" aria-label="Acercar tablero" @click="zoomIn">+</button>
       <button
         type="button"
         class="zoom-btn zoom-level"
-        :title="zoom !== 1 || pan.x !== 0 || pan.y !== 0 ? 'Restablecer vista (100%)' : 'Zoom actual'"
+        :title="zoom !== 1 ? 'Restablecer zoom al 100%' : 'Zoom actual'"
         aria-label="Restablecer zoom al 100%"
         @click="resetZoom"
       >
@@ -582,11 +543,11 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
       </button>
       <button type="button" class="zoom-btn" title="Alejar (-)" aria-label="Alejar tablero" @click="zoomOut">−</button>
       <button
-        v-if="zoom !== 1 || pan.x !== 0 || pan.y !== 0"
+        v-if="zoom !== 1"
         type="button"
         class="zoom-btn zoom-reset"
-        title="Centrar y restablecer vista"
-        aria-label="Centrar y restablecer vista"
+        title="Restablecer zoom al 100%"
+        aria-label="Restablecer zoom al 100%"
         @click="resetZoom"
       >
         ⊙
@@ -603,6 +564,23 @@ function formatNodeLabel(name: string): { line1: string; line2?: string } {
 </template>
 
 <style scoped>
+.clock-cardinal-label {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  fill: #818cf8;
+  opacity: 0.65;
+  pointer-events: none;
+  user-select: none;
+}
+
+:global(.theme-light) .clock-cardinal-label {
+  fill: #4f46e5;
+  opacity: 0.75;
+}
+
 .board-zoom-controls {
   position: absolute;
   bottom: 14px;

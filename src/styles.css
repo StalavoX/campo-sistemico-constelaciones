@@ -57,6 +57,10 @@ select, input:not([type="range"]):not([type="color"]), textarea {
 .workspace { display: grid; flex: 1; min-height: 0; grid-template-columns: 280px minmax(420px, 1fr) 300px; }
 .catalog-panel, .details-panel { display: flex; min-height: 0; flex-direction: column; background: rgba(17, 24, 39, .76); }
 .catalog-panel { border-right: 1px solid var(--border); }
+.field-question-panel { padding: 0 14px 10px; }
+.field-question-panel .field-label { margin: 0; gap: 5px; }
+.field-question-panel textarea { min-height: 56px; resize: vertical; font-size: 11.5px; line-height: 1.4; padding: 7px 10px; border-radius: 9px; }
+.catalog-panel .sprite-catalog { flex: 1; min-height: 0; padding: 0 14px 10px; }
 .sprite-library-host { flex: 1; min-height: 0; overflow: hidden; padding: 0 13px 15px; }
 .sprite-library-host .scm-library-only { height: 100%; color: #e7eaf2; }
 .details-panel { border-left: 1px solid var(--border); padding-bottom: 18px; overflow-y: auto; }

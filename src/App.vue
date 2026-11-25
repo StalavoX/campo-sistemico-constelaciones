@@ -149,6 +149,7 @@ watch(() => JSON.stringify({
   facilitator: session.value.facilitator,
   client: session.value.client,
   objective: session.value.objective,
+  fieldQuestion: session.value.fieldQuestion,
   consent: session.value.consent,
   notes: session.value.notes,
   closing: session.value.closing,
@@ -162,14 +163,14 @@ function addSpriteNode(sprite: SpriteLibraryItem) {
   const distance = Math.min(350, 150 + index * 8);
   const node: FieldNode = {
     id: crypto.randomUUID(),
-    name: sprite.name,
+    name: '',
     icon: '⭐',
     color: '#6366f1',
     sprite: { src: sprite.src, direction: 4, spriteSheet: sprite.spriteSheet },
     x: Math.round(500 + Math.cos(angle) * distance),
     y: Math.round(500 + Math.sin(angle) * distance),
     rotation: 0,
-    scale: 1.5,
+    scale: 2.0,
   };
   session.value.nodes.push(node);
   selectedNodeId.value = node.id;
@@ -625,6 +626,17 @@ onUnmounted(() => {
           <span class="count-pill">{{ spriteLibraryCount }}</span>
           <button class="icon-button mobile-close" aria-label="Cerrar biblioteca" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
+        <div class="field-question-panel">
+          <label class="field-label question-label">
+            <span>Pregunta al campo</span>
+            <textarea
+              v-model="session.fieldQuestion"
+              rows="2"
+              maxlength="500"
+              placeholder="¿Qué pregunta o movimiento consulta la persona al campo?"
+            ></textarea>
+          </label>
+        </div>
         <SpriteCatalog
           :items="spriteLibrary"
           :selected-src="selectedNode?.sprite?.src ?? null"
@@ -754,7 +766,7 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="0.6" max="1.8" step="0.1" @change="commitHistory" /></label>
+          <label class="field-label">Tamaño <output>{{ selectedNode.scale.toFixed(1) }}×</output><input v-model.number="selectedNode.scale" type="range" min="1.0" max="2.8" step="0.1" @change="commitHistory" /></label>
           <label class="field-label">
             <span>Frase sanadora / Hipótesis</span>
             <input v-model="selectedNode.phrase" placeholder="Ej. «Te veo», «Tomo la vida de ti»…" maxlength="120" @change="commitHistory" />
@@ -810,6 +822,7 @@ onUnmounted(() => {
             <label class="field-label">Facilitador/a<input v-model="session.facilitator" maxlength="120" placeholder="Nombre profesional" /></label>
             <label class="field-label">Cliente o motivo<input v-model="session.client" maxlength="120" placeholder="Nombre o tema de sesión" /></label>
             <label class="field-label">Objetivo de la sesión<textarea v-model="session.objective" rows="3" maxlength="500" placeholder="¿Qué desea explorar la persona?"></textarea></label>
+            <label class="field-label">Pregunta al campo<textarea v-model="session.fieldQuestion" rows="3" maxlength="500" placeholder="¿Qué pregunta o movimiento consulta la persona al campo?"></textarea></label>
             <label class="consent-check"><input v-model="session.consent" type="checkbox" /> <span>La persona comprende que este mapa representa percepciones y puede cambiarlo o detener la sesión.</span></label>
             <label class="field-label">Observaciones<textarea v-model="session.notes" rows="6" maxlength="6000" placeholder="Registra lo que la persona expresa, sin convertirlo en una conclusión…"></textarea><small class="character-count">{{ session.notes.length }} / 6000</small></label>
             <label class="field-label">Cierre y seguimiento<textarea v-model="session.closing" rows="4" maxlength="2000" placeholder="Acuerdos, recursos y próximos pasos…"></textarea></label>
@@ -864,6 +877,8 @@ onUnmounted(() => {
         <dl>
           <dt>Objetivo</dt>
           <dd>{{ session.objective || 'No especificado' }}</dd>
+          <dt>Pregunta al campo</dt>
+          <dd>{{ session.fieldQuestion || 'No especificada' }}</dd>
           <dt>Consentimiento</dt>
           <dd>{{ session.consent ? 'Registrado' : 'No registrado' }}</dd>
           <dt>Observaciones</dt>

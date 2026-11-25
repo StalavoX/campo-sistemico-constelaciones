@@ -89,6 +89,7 @@ export interface Session {
   facilitator: string;
   client: string;
   objective: string;
+  fieldQuestion?: string;
   consent: boolean;
   notes: string;
   closing: string;

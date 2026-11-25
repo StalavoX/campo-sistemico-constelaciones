@@ -52,7 +52,7 @@ describe('validación de sesiones', () => {
       lines: [],
       nodes: [{ ...validSession.nodes[0], x: 4000, y: -40, scale: 10 }],
     });
-    expect(result.nodes[0]).toMatchObject({ x: 960, y: 40, scale: 1.8 });
+    expect(result.nodes[0]).toMatchObject({ x: 960, y: 40, scale: 2.8 });
   });
 
   it('reemplaza colores inválidos importados por valores seguros', () => {

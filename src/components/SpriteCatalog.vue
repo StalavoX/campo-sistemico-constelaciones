@@ -103,8 +103,8 @@ async function onFileSelected(event: Event) {
         type="button"
         class="sprite-card"
         :class="{ 'is-active': isItemSelected(item) }"
-        :title="`Agregar ${item.name} al tablero`"
-        :aria-label="`Agregar ${item.name} al campo sistémico`"
+        :title="item.name"
+        :aria-label="item.name"
         @click="handleSelect(item)"
       >
         <span
@@ -116,7 +116,6 @@ async function onFileSelected(event: Event) {
             backgroundPosition: item.spriteSheet ? '50% 50%' : 'center center',
           }"
         />
-        <span class="sprite-name">{{ item.name }}</span>
         <span v-if="isItemSelected(item)" class="sprite-badge" aria-hidden="true">✓</span>
       </button>
     </div>
@@ -179,7 +178,7 @@ async function onFileSelected(event: Event) {
 
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   overflow-y: auto;
   align-content: start;
@@ -190,24 +189,23 @@ async function onFileSelected(event: Event) {
 .sprite-card {
   position: relative;
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  aspect-ratio: 1;
+  padding: 6px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 12px;
   background: rgba(30, 41, 59, 0.7);
   color: #e2e8f0;
   cursor: pointer;
-  text-align: left;
   transition: all 0.16s ease-out;
-  min-width: 0;
 }
 
 .sprite-card:hover {
   border-color: #818cf8;
   background: rgba(49, 46, 129, 0.35);
   color: #ffffff;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .sprite-card.is-active {
@@ -217,9 +215,10 @@ async function onFileSelected(event: Event) {
 }
 
 .sprite-crop {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 52px;
+  height: 52px;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: 8px;
   background-color: transparent !important;
   background-repeat: no-repeat;
