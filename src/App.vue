@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import FieldBoard from './components/FieldBoard.vue';
 import SpriteCatalog from './components/SpriteCatalog.vue';
 import UiIcon from './components/UiIcon.vue';
-import { loadPreloadedSpriteLibrary, restoreLegacySpriteNodes, saveCustomSprite } from './data/sprites';
+import { loadPreloadedSpriteLibrary, restoreLegacySpriteNodes } from './data/sprites';
 import { listSessions, removeSession, saveAllSessions, saveSession } from './storage';
 import type { FieldLine, FieldNode, Session, SpriteLibraryItem } from './types';
 import { spriteDirections } from './types';
@@ -179,13 +179,6 @@ function addSpriteNode(sprite: SpriteLibraryItem) {
   showCatalog.value = false;
 }
 
-function onCustomSpriteUploaded(item: SpriteLibraryItem) {
-  saveCustomSprite(item);
-  spriteLibrary.value.unshift(item);
-  addSpriteNode(item);
-  showToast(`Personaje «${item.name}» agregado a la biblioteca.`);
-}
-
 function restoreSessionSpritePreviews(source: Session): Session {
   const library = spriteLibrary.value;
   return { ...source, nodes: restoreLegacySpriteNodes(source.nodes, library) };
@@ -195,6 +188,7 @@ function activateNode(id: string) {
   if (!id) {
     selectedNodeId.value = null;
     selectedLineId.value = null;
+    showDetails.value = true;
     return;
   }
   if (!connectMode.value) {
@@ -241,6 +235,29 @@ function moveNode(id: string, x: number, y: number) {
   if (node) {
     node.x = Math.min(960, Math.max(40, x));
     node.y = Math.min(960, Math.max(40, y));
+  }
+}
+
+function handleStagePointerDown(event: PointerEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('[data-node-id], [data-line-id], button, a, input, textarea, .board-zoom-controls, .canvas-toolbar')) {
+    return;
+  }
+  if (!connectMode.value) {
+    selectedNodeId.value = null;
+    selectedLineId.value = null;
+    showDetails.value = true;
+  }
+}
+
+function editNodeLabel(id: string) {
+  const node = session.value.nodes.find((item) => item.id === id);
+  if (!node) return;
+  const current = node.name || '';
+  const result = window.prompt('Escribe cualquier información, rol o nombre para esta figura:', current);
+  if (result !== null) {
+    node.name = result.trim();
+    commitHistory();
   }
 }
 
@@ -626,23 +643,11 @@ onUnmounted(() => {
           <span class="count-pill">{{ spriteLibraryCount }}</span>
           <button class="icon-button mobile-close" aria-label="Cerrar biblioteca" @click="showCatalog = false"><UiIcon name="close" /></button>
         </div>
-        <div class="field-question-panel">
-          <label class="field-label question-label">
-            <span>Pregunta al campo</span>
-            <textarea
-              v-model="session.fieldQuestion"
-              rows="2"
-              maxlength="500"
-              placeholder="¿Qué pregunta o movimiento consulta la persona al campo?"
-            ></textarea>
-          </label>
-        </div>
         <SpriteCatalog
           :items="spriteLibrary"
           :selected-src="selectedNode?.sprite?.src ?? null"
           :theme="theme"
           @select="addSpriteNode"
-          @upload="onCustomSpriteUploaded"
         />
         <div class="privacy-note">
           <span><UiIcon name="shield" :size="20" /></span>
@@ -671,7 +676,11 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="canvas-stage" :class="{ 'connection-mode': connectMode }">
+        <div
+          class="canvas-stage"
+          :class="{ 'connection-mode': connectMode }"
+          @pointerdown="handleStagePointerDown"
+        >
           <div class="canvas-meta"><span><b>{{ totalCount }}</b> elementos</span><span class="meta-dot"></span><span><b>{{ session.lines.length }}</b> vínculos</span></div>
           <div v-if="connectMode" class="mode-banner"><UiIcon name="link" :size="16" />{{ firstConnectionNode ? 'Selecciona el segundo elemento' : 'Selecciona el primer elemento' }} <button @click="toggleConnect">Cancelar</button></div>
           <FieldBoard
@@ -688,6 +697,7 @@ onUnmounted(() => {
             @delete-line="deleteLineById"
             @move="moveNode"
             @drag-end="commitHistory"
+            @edit-label="editNodeLabel"
           />
           <div class="canvas-legend"><span><i class="legend-core"></i>Núcleo</span><span><i class="legend-mid"></i>Medio</span><span><i class="legend-outer"></i>Exterior</span></div>
         </div>
@@ -715,9 +725,9 @@ onUnmounted(() => {
               }"
             />
             <span v-else><img :class="{ 'sapiens-asset': selectedNode.icon.startsWith('sapiens:') }" :src="getTwemojiAssetPath(selectedNode.icon)" alt="" /></span>
-            <div><strong>{{ selectedNode.name }}</strong><small>{{ formatClockPosition(selectedNode.x, selectedNode.y) }}</small></div>
+            <div><strong>{{ selectedNode.name || 'Sin información asignada' }}</strong><small>{{ formatClockPosition(selectedNode.x, selectedNode.y) }}</small></div>
           </div>
-          <label class="field-label">Nombre o rol<input v-model="selectedNode.name" maxlength="80" @change="commitHistory" /></label>
+          <label class="field-label">Información o rol<input v-model="selectedNode.name" maxlength="80" placeholder="Ej. Papá, Mamá, El síntoma, Miedo, Consultante…" @change="commitHistory" /></label>
           <div v-if="selectedNode.sprite" class="field-label direction-control sprite-direction-control">
             <span>Dirección de mirada <output>{{ spriteDirections[selectedNode.sprite.direction]?.label }}</output></span>
             <div class="sprite-direction-options" role="group" aria-label="Dirección de mirada">

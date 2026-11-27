@@ -22,6 +22,7 @@ const emit = defineEmits<{
   deleteLine: [id: string];
   move: [id: string, x: number, y: number];
   dragEnd: [];
+  editLabel: [id: string];
 }>();
 
 const TICKS = Array.from({ length: 60 }, (_, index) => {
@@ -156,7 +157,8 @@ function moveNode(event: PointerEvent) {
 }
 
 function backgroundClick(event: PointerEvent) {
-  if ((event.target as Element).closest('[data-node-id], [data-line-id]')) return;
+  const target = event.target as Element | null;
+  if (target?.closest('[data-node-id], [data-line-id], button, .board-zoom-controls')) return;
   if (!props.connectMode) emit('activate', '');
 }
 
@@ -219,10 +221,30 @@ function getLineMidpoint(line: FieldLine) {
     y: Math.round((fromNode.y + toNode.y) / 2),
   };
 }
+
+function formatNodeLabel(name: string): { line1: string; line2?: string } {
+  const trimmed = name.trim();
+  if (trimmed.length <= 18) return { line1: trimmed };
+  const words = trimmed.split(/\s+/);
+  if (words.length <= 1) return { line1: `${trimmed.slice(0, 16)}…` };
+  let line1 = '';
+  let line2 = '';
+  for (const word of words) {
+    if (!line1 || `${line1} ${word}`.length <= 16) {
+      line1 = line1 ? `${line1} ${word}` : word;
+    } else if (!line2 || `${line2} ${word}`.length <= 16) {
+      line2 = line2 ? `${line2} ${word}` : word;
+    } else {
+      line2 = `${line2.slice(0, 13)}…`;
+      break;
+    }
+  }
+  return { line1, line2: line2 || undefined };
+}
 </script>
 
 <template>
-  <div class="board-wrap" :class="{ 'is-connecting': connectMode }">
+  <div class="board-wrap" :class="{ 'is-connecting': connectMode }" @pointerdown="backgroundClick">
     <svg
       ref="svgElement"
       class="field-board"
@@ -273,6 +295,9 @@ function getLineMidpoint(line: FieldLine) {
           <path d="M 0 1 L 9 5 L 0 9 z" fill="#f59e0b" />
         </marker>
       </defs>
+
+      <!-- Fondo interactivo completo del lienzo para capturar clics en cualquier punto fuera de figuras -->
+      <rect x="0" y="0" width="1000" height="1000" fill="transparent" pointer-events="all" />
 
       <!-- Fondo y anillos del reloj sistémico fijo en el centro -->
       <circle cx="500" cy="500" r="486" :fill="theme === 'light' ? '#cbd5e1' : '#0b1220'" :stroke="theme === 'light' ? '#94a3b8' : '#64748b'" stroke-opacity=".45" stroke-width="2" />
@@ -482,6 +507,39 @@ function getLineMidpoint(line: FieldLine) {
           preserveAspectRatio="xMidYMid meet"
           aria-hidden="true"
         />
+
+        <!-- Etiqueta de información / rol (se muestra el texto ingresado o un recuadro editable si está seleccionada) -->
+        <g
+          v-if="node.name && node.name.trim()"
+          class="node-label"
+          role="button"
+          tabindex="0"
+          :aria-label="`Información: ${node.name}. Clic o doble clic para editar.`"
+          @click.stop="emit('editLabel', node.id)"
+          @dblclick.stop="emit('editLabel', node.id)"
+        >
+          <template v-if="formatNodeLabel(node.name).line2">
+            <rect x="-96" :y="node.figure || node.sprite ? 50 : 43" width="192" height="46" rx="10" />
+            <text :y="node.figure || node.sprite ? 68 : 61" font-weight="600">{{ formatNodeLabel(node.name).line1 }}</text>
+            <text :y="node.figure || node.sprite ? 84 : 77" class="node-label-sub">{{ formatNodeLabel(node.name).line2 }}</text>
+          </template>
+          <template v-else>
+            <rect x="-96" :y="node.figure || node.sprite ? 52 : 45" width="192" height="38" rx="10" />
+            <text :y="node.figure || node.sprite ? 77 : 70">{{ formatNodeLabel(node.name).line1 }}</text>
+          </template>
+        </g>
+        <g
+          v-else-if="selectedNodeId === node.id"
+          class="node-label node-label-empty"
+          role="button"
+          tabindex="0"
+          aria-label="Escribir información o rol para esta figura"
+          @click.stop="emit('editLabel', node.id)"
+          @dblclick.stop="emit('editLabel', node.id)"
+        >
+          <rect x="-86" :y="node.figure || node.sprite ? 52 : 45" width="172" height="36" rx="10" class="node-label-placeholder-rect" />
+          <text :y="node.figure || node.sprite ? 75 : 68" class="node-label-placeholder-text">+ Escribir información</text>
+        </g>
       </g>
 
       <!-- Punto central del sistema -->
